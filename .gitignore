@@ -4,3 +4,6 @@ dist/
 dist.zip
 .netlify/
 .claude/
+__pycache__/
+*.pyc
+*.whl
