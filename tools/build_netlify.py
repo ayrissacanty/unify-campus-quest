@@ -68,6 +68,8 @@ SUPPORT = [
     "phone-net.js",
     "unify-mail.js",
     "academy-live.js",
+    "hq-data.js",
+    "curriculum-seed.js",
     "academy-presence.js",
     "phone-config.js",
     "supabase-client.js",
