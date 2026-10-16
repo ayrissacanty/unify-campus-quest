@@ -6,3 +6,4 @@ dist.zip
 dist-pixar/
 dist-normal/
 /node_modules
+.claude/
