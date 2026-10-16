@@ -35,6 +35,7 @@ PAGES = [
     "auditorium3d.html",
     "classroom3d.html",
     "news.html",
+    "news2d.html",
     "phone.html",
     "opendoor.html",
     "fieldtrip.html",
@@ -43,13 +44,6 @@ PAGES = [
     "mail.html",
     "newsdesk.html",
     "dorm.html",
-    # Agent Team apps: HQ + admin studios (gated in-page) and the in-class textbook (open to students)
-    "hq.html",
-    "academy-control.html",
-    "staff.html",
-    "customize.html",
-    "curriculum-builder.html",
-    "textbook.html",
 ]
 LEGACY = [
     "pages.html",
@@ -68,24 +62,12 @@ SUPPORT = [
     "phone-net.js",
     "unify-mail.js",
     "academy-live.js",
-    "hq-data.js",
-    "curriculum-seed-1.js",
-    "curriculum-seed-2.js",
-    "curriculum-seed-3.js",
-    "curriculum-seed-4.js",
-    "curriculum-seed-5.js",
-    "curriculum-seed-6.js",
-    "curriculum-seed-7.js",
-    "curriculum-seed-8.js",
-    "curriculum-seed-9.js",
     "academy-presence.js",
     "phone-config.js",
     "supabase-client.js",
     "supabase-config.js",
     "calmui.js",
     "phone-icon.svg",
-    "look.js",
-    "pixar-ui.css",
     "icon-180.png",
     "icon-192.png",
     "icon-512.png",
@@ -116,30 +98,8 @@ for name in BUNDLES:
             r'"/(assets/unify/[^"]+)"', read(os.path.join(ROOT, "demo/dist", name))
         )
     )
-def inject_look(rel):
-    """look.js must be the first script of every shipped page so data-look is set pre-paint."""
-    p = os.path.join(out, rel)
-    html = read(p, errors="ignore")
-    if "look.js" in html:
-        return
-    tag = '<script src="%slook.js"></script>' % ("../" * rel.count("/"))
-    if re.search(r"<head[^>]*>", html, re.IGNORECASE):
-        html = re.sub(
-            r"(<head[^>]*>)",
-            lambda m: m.group(1) + tag,
-            html,
-            count=1,
-            flags=re.IGNORECASE,
-        )
-    else:
-        html = tag + html
-    write(p, html)
-
-
 for rel in PAGES + SUPPORT:
     copy_to_out(rel)
-    if rel.endswith(".html"):
-        inject_look(rel)
     if rel.endswith((".html", ".js")):
         refs |= set(
             re.findall(
@@ -152,7 +112,6 @@ if "--no-legacy" not in sys.argv:
         "new", "new.html"
     )  # the file named "new" (no extension) is a complete page: UNIFY Academy - Live Simulation
     PAGES.append("new.html")
-    inject_look("new.html")
 for d in ("vendor", "curriculum"):
     for dp, _, fs in os.walk(os.path.join(ROOT, d)):
         for fn in fs:
@@ -223,9 +182,6 @@ if (
 missing = []
 for page in PAGES:
     html = read(os.path.join(out, page), errors="ignore")
-    first = re.search(r"<script[^>]*>", html)
-    if not first or "look.js" not in first.group(0):
-        missing.append(f"{page}: look.js is not the first script")
     base = os.path.dirname(page)
     for u in re.findall(r'(?:src|href)=["\']([^"\'#?]+)', html):
         if (

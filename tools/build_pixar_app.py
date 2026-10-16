@@ -28,15 +28,12 @@ def write(p, t):
 
 
 look = read(os.path.join(ROOT, "look.js"))
-# look.js now defaults to the Pixar look; only rewrite if it still says papercut
-if 'var LOOK = "papercut"' in look:
-    look = look.replace('var LOOK = "papercut"', 'var LOOK = "pixar"')
-assert 'var LOOK = "pixar"' in look, "look.js no longer has the LOOK default line"
+assert 'var LOOK = "papercut"' in look, "look.js no longer has the LOOK default line"
+look = look.replace('var LOOK = "papercut"', 'var LOOK = "pixar"')
 # stylesheet next to look.js, whatever the page depth
-if 'l.href = "pixar-ui.css"' in look:
-    look = look.replace('l.href = "pixar-ui.css"', 'l.href = document.currentScript.src.replace(/look\\.js.*$/, "pixar-ui.css")')
-    look = look.replace("(function () {", "(function () {\n  var CS = document.currentScript;", 1).replace("document.currentScript.src", "CS.src")
+look = look.replace('l.href = "pixar-ui.css"', 'l.href = document.currentScript.src.replace(/look\\.js.*$/, "pixar-ui.css")')
 assert "currentScript" in look
+look = look.replace("(function () {", "(function () {\n  var CS = document.currentScript;", 1).replace("document.currentScript.src", "CS.src")
 write(os.path.join(out, "look.js"), look)
 write(os.path.join(out, "pixar-ui.css"), read(os.path.join(ROOT, "pixar-ui.css")))
 
@@ -48,19 +45,21 @@ for dp, _, fs in os.walk(out):
 for rel in pages:
     p = os.path.join(out, rel)
     html = read(p)
-    if "look.js" not in html:  # build_netlify.py may already have injected it
-        tag = '<script src="%slook.js"></script>' % ("../" * rel.count("/"))
-        if re.search(r"<head[^>]*>", html, re.IGNORECASE):
-            html = re.sub(r"(<head[^>]*>)", lambda m, t=tag: m.group(1) + t, html, count=1, flags=re.IGNORECASE)
-        else:
-            html = tag + html
+    tag = '<script src="%slook.js"></script>' % ("../" * rel.count("/"))
+    if re.search(r"<head[^>]*>", html, re.IGNORECASE):
+        html = re.sub(r"(<head[^>]*>)", lambda m, t=tag: m.group(1) + t, html, count=1, flags=re.IGNORECASE)
+    else:
+        html = tag + html
     if rel == "index.html":
         html = re.sub(r"(<title>)(.*?)(</title>)", lambda m: m.group(1) + m.group(2) + " - Pixar edition" + m.group(3), html, count=1, flags=re.DOTALL)
     write(p, html)
 
+# Netlify's upload-and-build step fails to bundle /api functions without a package.json (found by bisecting a deploy)
+with open(os.path.join(out, "package.json"), "w") as _pj:
+    _pj.write('{"name":"unify-academy-pixar","private":true,"type":"module"}\n')
 toml = os.path.join(out, "netlify.toml")
 if os.path.exists(toml):
-    write(toml, read(toml) + """
+    write(toml, read(toml).replace("[build]", "[build]\n  command = \"echo prebuilt\"", 1) + """
 [[headers]]
   for = "/*.html"
   [headers.values]

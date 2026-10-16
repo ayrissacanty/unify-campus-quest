@@ -32,7 +32,7 @@ export interface Style {
 }
 
 /* ---------------------------------------------------------------- 3D character (built from the SAME AvatarSpec the 2D rig uses) */
-export type Anim = "idle" | "wave" | "sit" | "talk" | "think" | "cheer" | "walk" | "type" | "raise" | "hip" | "point" | "shrug" | "nod" | "shake" | "lean";
+export type Anim = "idle" | "wave" | "sit" | "talk" | "think" | "cheer" | "walk" | "type" | "raise" | "hip" | "point" | "shrug" | "nod" | "shake" | "lean" | "dance" | "clap";
 /** mouth shapes (visemes) for setMouth: closed, small open, wide open, "O", smile, frown, M/B/P (lips pressed) */
 export type MouthShape = "closed" | "small" | "wide" | "o" | "smile" | "frown" | "mbp";
 export interface Char3D {
@@ -48,8 +48,6 @@ export interface Char3D {
   /** eyebrow raise -1 (frown) .. 1 (surprised) held until set again; null = idle micro-animation */
   setBrow(v: number | null): void;
   update(dt: number): void;
-  /** current ground speed in world-units/sec while playing "walk" (0 when still): gates hair swing — loose hair only swings at run/fast-walk speed */
-  setMoveSpeed?(u: number): void;
   /** approx. height in world units (metres) so rooms can place it */
   readonly height: number;
   /** the part of the avatar to focus the camera on when editing: "head" | "torso" | "legs" | "feet" | "bag" | "hat" */
