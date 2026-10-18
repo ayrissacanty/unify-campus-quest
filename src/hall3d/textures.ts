@@ -27,7 +27,7 @@ export const floorTex = () => mk(256, 256, (c) => {
   c.strokeStyle = "rgba(90,120,140,.45)"; c.lineWidth = 3; c.strokeRect(1.5, 1.5, 253, 253); c.beginPath(); c.moveTo(128, 0); c.lineTo(128, 256); c.moveTo(0, 128); c.lineTo(256, 128); c.stroke();
 }, true);
 
-export const rugTex = () => mk(256, 256, (c, w, h) => {
+export const rugTex = () => mk(256, 256, (c) => {
   c.fillStyle = "#9fd0e8"; c.fillRect(0, 0, 256, 256);
   for (let k = 0; k < 220; k++) { c.fillStyle = k & 1 ? "rgba(255,255,255,.3)" : "rgba(50,108,158,.14)"; c.fillRect(hash(k, 1) * 256, hash(k, 2) * 256, 3, 3); }
   for (const [x, w, col] of [[0, 18, "#EAB94E"], [22, 8, "#F28F7E"], [226, 8, "#F28F7E"], [238, 18, "#EAB94E"]] as const) { c.fillStyle = col; c.fillRect(x, 0, w, 256); }
