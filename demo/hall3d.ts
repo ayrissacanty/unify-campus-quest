@@ -91,7 +91,7 @@ $("bOpenLocker").onclick = () => { const p = hall.player.pos, s = Lockers.neares
 
 /* ---- wall pictures and the news TV are tappable ---- */
 hall.onPic = (pid, _title, subject) => { lock(true); const ls = (CURRICULUM as any)[subject] ?? [], cur = ls[Progress.index(subject as any, ls.length)]; openPic(pid, { lesson: cur?.title, onClose: () => lock(false) }); };
-hall.onTV = () => { lock(true); openNewsPanel(() => lock(false), () => parent !== window && parent.postMessage({ type: "unify:open", view: "news" }, "*")); };
+hall.onTV = () => { lock(true); openNewsPanel(() => lock(false), () => { if (parent !== window) parent.postMessage({ type: "unify:open", view: "news" }, "*"); else location.assign("news.html"); }); };
 
 /* ---- the school day: ride the bus in, walk to the bulletin board, make the schedule, go inside (assembly, then first class); sit at Chat Chow when idle ---- */
 const todayKey = () => new Date().toDateString();
@@ -184,7 +184,7 @@ addEventListener("unify:progress", () => Quests.track("lesson"));
 addEventListener("storage", (e) => { if (e.key === "unify.assembly.day") Quests.track("assembly"); if (e.key === "unify.opendoor.visit") Quests.track("opendoor"); if (e.key === "unify.trip.visit") Quests.track("trip"); if (e.key === "unify.opendoor.kind") Quests.track("kind"); });
 addEventListener("unify:event-adopt", () => hall.setAvatar(Social.profile.avatar));
 // the Today panel
-const hubHooks = { applyTheme, openGames: () => { lock(true); openGames(() => lock(false)); }, openTrip: () => { if (parent !== window) parent.postMessage({ type: "unify:open", view: "trip" }, "*"); else hall.onToast("Open index.html to take a VR field trip."); }, goTo: (k: string) => hall.goTo(k) };
+const hubHooks = { applyTheme, openGames: () => { lock(true); openGames(() => lock(false)); }, openTrip: () => { if (parent !== window) parent.postMessage({ type: "unify:open", view: "trip" }, "*"); else location.assign("fieldtrip.html"); }, goTo: (k: string) => hall.goTo(k) };
 $("bToday").onclick = () => { lock(true); openHub({ ...hubHooks, onClose: () => lock(false) }); };
 addEventListener("keydown", (e) => { if ((e.key === "y" || e.key === "Y") && !(e.target as HTMLElement)?.closest("input,textarea") && !hall.inputLocked) { lock(true); openHub({ ...hubHooks, onClose: () => lock(false) }); } });
 setInterval(() => Safety.tick(), 60e3); let nudged = 0; setInterval(() => { if (Safety.overLimit() && Date.now() - nudged > 15 * 60e3) { nudged = Date.now(); hall.onToast("You've reached your daily school time. Time for a stretch, a snack and some sunshine! 🌞"); } }, 30e3);
