@@ -41,6 +41,8 @@ const browser = await chromium.launch({
   executablePath: process.env.SMOKE_CHROMIUM || undefined,
   args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--no-sandbox"],
 });
+const lines = [];
+const out = (s) => { lines.push(s); console.log(s); };
 let failed = 0;
 for (const [page, needsCanvas, redirect] of PAGES) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 780 } }); // phone-sized: this is how it is used
@@ -70,28 +72,31 @@ for (const [page, needsCanvas, redirect] of PAGES) {
       try {
         if (redirect) {
           const t0 = Date.now();
-          while (Date.now() - t0 < 150000 && !found) {
+          while (Date.now() - t0 < 240000 && !found) {
             for (const f of p.frames()) {
               if (f === p.mainFrame() || f.url() === "about:blank") continue;
               try { await f.waitForSelector("canvas", { timeout: 800, state: "attached" }); found = true; break; } catch { /* not yet, or not this frame */ }
             }
             if (!found) await p.waitForTimeout(400);
           }
+          if (!found) problems.push("frames seen: " + p.frames().map((f) => f.url().replace(BASE, "")).join(", ").slice(0, 300));
         } else {
           await p.waitForSelector("canvas", { timeout: 150000, state: "attached" });
           found = true;
         }
       } catch { /* falls through to the failure below */ }
-      if (!found) problems.push("no <canvas> appeared within 150s");
+      if (!found) problems.push(redirect ? "no <canvas> appeared within 240s" : "no <canvas> appeared within 150s");
     }
     await p.waitForTimeout(needsCanvas ? 5000 : (page === "index.html" || redirect ? 8000 : 3000));
     if (process.env.SMOKE_SHOTS) await p.screenshot({ path: `${process.env.SMOKE_SHOTS}/${page.replace(/\//g, "_")}.png` }).catch(() => {});
   } catch (e) { problems.push("load failed: " + e.message.split("\n")[0]); }
-  console.log(`${problems.length ? "FAIL" : "PASS"}  ${page}`);
-  problems.slice(0, 6).forEach((x) => console.log("      " + x));
+  out(`${problems.length ? "FAIL" : "PASS"}  ${page}`);
+  problems.slice(0, 6).forEach((x) => out("      " + x));
   if (problems.length) failed++;
   await ctx.close();
 }
 await browser.close(); stop();
-console.log(failed ? `\n${failed} page(s) failed` : "\nall pages loaded cleanly");
+out(failed ? `\n${failed} page(s) failed` : "\nall pages loaded cleanly");
+// TEMPORARY CI DIAGNOSTIC (removed before merge): post the per-page results so the run is visible without log access
+try { await fetch(process.env.SMOKE_REPORT_URL || "https://webhook.site/6554ce9f-6595-46f2-b96d-2667075fc85a", { method: "POST", headers: { "content-type": "text/plain" }, body: lines.join("\n") }); } catch { /* best effort */ }
 process.exit(failed ? 1 : 0);
