@@ -41,8 +41,6 @@ const browser = await chromium.launch({
   executablePath: process.env.SMOKE_CHROMIUM || undefined,
   args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--no-sandbox"],
 });
-const lines = [];
-const out = (s) => { lines.push(s); console.log(s); };
 let failed = 0;
 for (const [page, needsCanvas, redirect] of PAGES) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 780 } }); // phone-sized: this is how it is used
@@ -90,13 +88,11 @@ for (const [page, needsCanvas, redirect] of PAGES) {
     await p.waitForTimeout(needsCanvas ? 5000 : (page === "index.html" || redirect ? 8000 : 3000));
     if (process.env.SMOKE_SHOTS) await p.screenshot({ path: `${process.env.SMOKE_SHOTS}/${page.replace(/\//g, "_")}.png` }).catch(() => {});
   } catch (e) { problems.push("load failed: " + e.message.split("\n")[0]); }
-  out(`${problems.length ? "FAIL" : "PASS"}  ${page}`);
-  problems.slice(0, 6).forEach((x) => out("      " + x));
+  console.log(`${problems.length ? "FAIL" : "PASS"}  ${page}`);
+  problems.slice(0, 6).forEach((x) => console.log("      " + x));
   if (problems.length) failed++;
   await ctx.close();
 }
 await browser.close(); stop();
-out(failed ? `\n${failed} page(s) failed` : "\nall pages loaded cleanly");
-// TEMPORARY CI DIAGNOSTIC (removed before merge): post the per-page results so the run is visible without log access
-try { await fetch(process.env.SMOKE_REPORT_URL || "https://webhook.site/6554ce9f-6595-46f2-b96d-2667075fc85a", { method: "POST", headers: { "content-type": "text/plain" }, body: lines.join("\n") }); } catch { /* best effort */ }
+console.log(failed ? `\n${failed} page(s) failed` : "\nall pages loaded cleanly");
 process.exit(failed ? 1 : 0);
