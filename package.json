@@ -16,7 +16,8 @@
     "dev": "npm run build && npm start",
     "postinstall": "npm run build",
     "vendor": "esbuild node_modules/@supabase/supabase-js/dist/index.mjs --bundle --format=esm --minify --outfile=vendor/supabase.js",
-    "test:smoke": "node tests/smoke.mjs"
+    "test:smoke": "node tests/smoke.mjs",
+    "test:student": "node tests/student.mjs"
   },
   "dependencies": {
     "@types/three": "^0.186.0",

@@ -42,6 +42,10 @@ jobs:
         run: npm run test:smoke
         env:
           SMOKE_DIR: dist
+      - name: Student click-through tests (curriculum next lesson, search, hallway walk and Go menu)
+        run: npm run test:student
+        env:
+          SMOKE_DIR: dist
       - name: Dependency audit (high and critical only; informational for now)
         run: npm audit --audit-level=high
         continue-on-error: true
