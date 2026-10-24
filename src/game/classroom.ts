@@ -43,9 +43,10 @@ export class ClassroomLife {
       else if ((e.target as HTMLElement)?.tagName !== "INPUT") { if (e.key === "h" || e.key === "H") this.raiseHand(); else if (/^[1-5]$/.test(e.key) && this.panel.isOpen) { const b = this.panel.optsEl.children[+e.key - 1] as HTMLButtonElement | undefined; b?.click(); } }
     });
   }
-  private get L(): Lesson { return this.lesson ?? this.L; }
+  // the current lesson: an explicitly assigned one, otherwise the subject's default lesson (never `this.L` - that recursed forever)
+  private get L(): Lesson { return this.lesson ?? LESSONS[this.subject]; }
   get teacher() { return TEACHER_BY_SUBJECT[this.subject]; }
-  get me() { return { name: Social.profile.name || "You", look: this.host.playerLook(), sub: "you" }; }
+  get me() { return { name: Social.profile.name || "You", look: this.host.playerLook(), sub: "you" } };
   private alive(t: number) { return t === this.tok && this.host.playerSeated(); }
   private emit(q = false) { this.onState({ handUp: this.handUp, question: q }); }
   /** show a card and wait for a button / typed text / Escape */
@@ -85,7 +86,7 @@ export class ClassroomLife {
     Social.profile.stats.hands++; Social.save(); await sleep(rnd(1100, 2000));
     let line = `Yes, ${me}? What's your question?`, count = 0;
     while (this.alive(t)) {
-      const r = await this.ask(spk(T), line, [{ id: "again", label: "Explain that again" }, { id: "example", label: "Give an example" }, { id: "why", label: "Why does that work?" }, { id: "done", label: "Never mind" }], "Or ask your own question…");
+      const r = await this.ask(spk(T), line, [{ id: "again", label: "Explain that again" }, { id: "example", label: "Give an example" }, { id: "why", label: "Why does that work?" }, { id: "done", label: "Never mind" }], "Or ask your own question\u2026");
       if (r === null || (typeof r !== "string" && r.id === "done")) break;
       const L = this.L; let reply: string, topic = typeof r === "string" ? r.slice(0, 24) : r.id;
       if (typeof r === "string") reply = (this.lesson ? explainWith(this.lesson, r, this.rot) : explain(this.subject, r, this.rot)) ?? (await this.modelOrGeneric(r));
