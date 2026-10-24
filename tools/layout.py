@@ -66,7 +66,7 @@ def main():
         sx, sy = iso(cx, cy); add(P, "column_fluted", sx, sy - e, int((cx + cy) * 100 + 25))
     for (rx, ry) in [(1.6, 4.0), (1.6, 8.5)]:
         sx, sy = iso(rx, ry)
-        add(P, "light_rig_left", sx, sy - STAGE_E - 150, 5000); add(P, "light_pool_warm", sx, sy - STAGE_E, 1500)
+        add(P, "light_rig_left", sx, sy - STAGE_E - 300, 5000); add(P, "light_pool_warm", sx, sy - STAGE_E, 1500)
     for s in SUBJECTS:
         L = D[s]; gx, gy = iso(0, 9.41); a = man[f"banner__{s}"]
         L.append(dict(key="banner", x=round(gx, 1), y=round(gy - STAGE_E - 176 - a["h"], 1), depth=-410, ox=0, oy=0))
