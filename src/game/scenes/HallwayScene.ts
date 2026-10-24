@@ -133,7 +133,7 @@ export class HallwayScene extends Phaser.Scene {
 
   /* ---------------------------------------------------------------- schedule -> student intents */
   private enterPeriod(i: number) {
-    const P = PERIODS[i], spots = shuffle(L.nav.flatMap((row, y) => row.split("").map((c, x, y) => ({ c, x, y }))).filter((t) => t.c === "." && t.y >= 1)), ent = { x: Math.floor(L.entrance.gx), y: Math.floor(L.entrance.gy) };
+    const P = PERIODS[i], spots = shuffle(L.nav.flatMap((row, y) => row.split("").map((c, x) => ({ c, x, y }))).filter((t) => t.c === "." && t.y >= 1)), ent = { x: Math.floor(L.entrance.gx), y: Math.floor(L.entrance.gy) };
     this.refreshDoors();
     this.students.forEach((s, n) => {
       if (P.kind === "class") { const door = L.doors.find((d) => d.room === (((n < 5) !== !!P.swap) ? "A" : "B"))!, t = door.tiles[n % 2]; s.lastDoor = t; s.pending = { delay: rnd(0, 8), dest: t, hide: true }; }
