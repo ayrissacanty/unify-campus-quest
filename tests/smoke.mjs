@@ -8,18 +8,20 @@ import { chromium } from "playwright";
 
 const PORT = process.env.SMOKE_PORT || "8799";
 const BASE = `http://127.0.0.1:${PORT}`;
-// page -> must contain a <canvas> after load (3D scenes)
+// page -> [must a <canvas> appear, redirect target into the app shell or null]
+// One app, one address: the bare room pages hand visitors into index.html, deep-linked to the room,
+// so for those the canvas is expected inside the shell's room iframe, not the top frame.
 // Time for the first 3D frame in software GL (SwiftShader on CI). The hallway builds the most shader programs (~55 on the first frame),
 // and SwiftShader compiles them in one go, which freezes the page for ~75 s on a 4-core box and more than 150 s on a GitHub runner.
 // A real GPU does this in a second or two. Script errors and 404s are still checked on every page; only the start-up wait is longer.
 const CANVAS_MS = { "hallway3d.html": 300000 };
 const canvasMs = (page) => Number(process.env.SMOKE_CANVAS_MS) || CANVAS_MS[page] || 150000;
 const PAGES = [
-  ["index.html", false], ["hallway3d.html", true], ["classroom3d.html", true], ["auditorium3d.html", true],
-  ["news.html", false], ["phone.html", false], ["opendoor.html", false], ["fieldtrip.html", true],
-  ["curriculum.html", false], ["parent.html", false], ["mail.html", false], ["newsdesk.html", false], ["dorm.html", true],
+  ["index.html", false, null], ["hallway3d.html", true, "/index.html"], ["classroom3d.html", true, "/index.html"], ["auditorium3d.html", true, "/index.html?view=stage"],
+  ["news.html", false, "/index.html?view=news"], ["phone.html", false, null], ["opendoor.html", false, "/index.html?view=open"], ["fieldtrip.html", true, "/index.html?view=trip"],
+  ["curriculum.html", false, null], ["parent.html", false, null], ["mail.html", false, null], ["newsdesk.html", false, null], ["dorm.html", true, null],
   // earlier versions and prototypes: kept and shipped too
-  ["pages.html", false], ["auditorium.html", true], ["hallway.html", true], ["new.html", false], ["prototypes/newsroom-enhanced.html", false],
+  ["pages.html", false, null], ["auditorium.html", true, null], ["hallway.html", true, null], ["new.html", false, null], ["prototypes/newsroom-enhanced.html", false, null],
 ];
 // noise that is not our bug: blocked third-party hosts in sandboxed CI, favicon, ad/analytics-style failures
 const IGNORE = [/favicon/i, /net::ERR_(BLOCKED|NAME_NOT_RESOLVED|INTERNET_DISCONNECTED|CONNECTION|TUNNEL|CERT)/i,
@@ -45,7 +47,7 @@ const browser = await chromium.launch({
   args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--no-sandbox"],
 });
 let failed = 0;
-for (const [page, needsCanvas] of PAGES) {
+for (const [page, needsCanvas, redirect] of PAGES) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 780 } }); // phone-sized: this is how it is used
   await ctx.route(/^(?!http:\/\/127\.0\.0\.1)/, (route) => { const u = route.request().url(); return /^(data|blob):/.test(u) ? route.continue() : route.abort(); });  // only our own site is judged
   const p = await ctx.newPage();
@@ -56,9 +58,39 @@ for (const [page, needsCanvas] of PAGES) {
   try {
     const res = await p.goto(`${BASE}/${page}`, { waitUntil: needsCanvas ? "commit" : "domcontentloaded", timeout: 60000 });
     if (!res || !res.ok()) problems.push(`page status ${res && res.status()}`);
-    // 3D scenes can take a minute to start in software GL (CI/sandbox); a phone GPU does it in seconds
-    if (needsCanvas) { const ms = canvasMs(page); try { await p.waitForSelector("canvas", { timeout: ms, state: "attached" }); } catch { problems.push(`no <canvas> appeared within ${ms / 1000}s`); } }
-    await p.waitForTimeout(needsCanvas ? 5000 : (page === "index.html" ? 8000 : 3000));
+    if (redirect) {
+      // a bare room page must hand the visitor into the shell, deep-linked to the room.
+      // Poll instead of waitForURL: the guard's location.replace can fire before a waiter is attached.
+      const wantQuery = redirect.includes("?") ? redirect.slice(redirect.indexOf("?")) : null;
+      const at = () => { try { const u = new URL(p.url()); return u.pathname === "/index.html" && (!wantQuery || u.search === wantQuery); } catch { return false; } };
+      const t0 = Date.now(); while (!at() && Date.now() - t0 < 30000) await p.waitForTimeout(100);
+      if (!at()) problems.push(`no redirect into ${redirect}`);
+    }
+    // 3D scenes can take a minute to start in software GL (CI/sandbox); a phone GPU does it in seconds.
+    // After a shell redirect the canvas belongs to the room's iframe, so wait on each live frame.
+    // frame.url() is a local accessor (safe while a busy scene answers no queries); the per-frame
+    // waitForSelector timeout is enforced by the driver, so a booting scene cannot stall the loop.
+    if (needsCanvas) {
+      let found = false;
+      try {
+        if (redirect) {
+          const t0 = Date.now();
+          while (Date.now() - t0 < 240000 && !found) {
+            for (const f of p.frames()) {
+              if (f === p.mainFrame() || f.url() === "about:blank") continue;
+              try { await f.waitForSelector("canvas", { timeout: 800, state: "attached" }); found = true; break; } catch { /* not yet, or not this frame */ }
+            }
+            if (!found) await p.waitForTimeout(400);
+          }
+          if (!found) problems.push("frames seen: " + p.frames().map((f) => f.url().replace(BASE, "")).join(", ").slice(0, 300));
+        } else {
+          await p.waitForSelector("canvas", { timeout: canvasMs(page), state: "attached" });
+          found = true;
+        }
+      } catch { /* falls through to the failure below */ }
+      if (!found) problems.push(redirect ? "no <canvas> appeared within 240s" : `no <canvas> appeared within ${canvasMs(page) / 1000}s`);
+    }
+    await p.waitForTimeout(needsCanvas ? 5000 : (page === "index.html" || redirect ? 8000 : 3000));
     if (process.env.SMOKE_SHOTS) await p.screenshot({ path: `${process.env.SMOKE_SHOTS}/${page.replace(/\//g, "_")}.png` }).catch(() => {});
   } catch (e) { problems.push("load failed: " + e.message.split("\n")[0]); }
   console.log(`${problems.length ? "FAIL" : "PASS"}  ${page}`);
