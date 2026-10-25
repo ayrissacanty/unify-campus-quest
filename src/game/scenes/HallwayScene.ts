@@ -88,6 +88,10 @@ export class HallwayScene extends Phaser.Scene {
     }
     this.bounds = new Phaser.Geom.Rectangle(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
 
+    /* the corridor diorama used to float on bare paper: extend the floor far past it so the camera never shows void.
+     * One tileSprite repeats the 96x48 iso floor tile seamlessly - a single draw call, no per-tile objects. */
+    this.add.tileSprite(this.bounds.centerX, this.bounds.centerY, this.bounds.width + 1800, this.bounds.height + 1600, ATLAS.key, "floor_hall_tile_01").setDepth(-1001);
+
     this.students = STUDENT_IDS.map((sid, i) => {
       const a = new HallActor(this, `s${i}`, sid, L.entrance.gx, L.entrance.gy, 0, "walk"); a.speed = rnd(1.9, 2.6); a.sprite.setVisible(false); a.stand("down_left");
       return { id: i, a, hidden: true, pending: null, lastDoor: { x: L.doors[i % 2].tiles[0].x, y: 0 }, walking: false };
