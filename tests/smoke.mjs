@@ -11,6 +11,11 @@ const BASE = `http://127.0.0.1:${PORT}`;
 // page -> [must a <canvas> appear, redirect target into the app shell or null]
 // One app, one address: the bare room pages hand visitors into index.html, deep-linked to the room,
 // so for those the canvas is expected inside the shell's room iframe, not the top frame.
+// Time for the first 3D frame in software GL (SwiftShader on CI). The hallway builds the most shader programs (~55 on the first frame),
+// and SwiftShader compiles them in one go, which freezes the page for ~75 s on a 4-core box and more than 150 s on a GitHub runner.
+// A real GPU does this in a second or two. Script errors and 404s are still checked on every page; only the start-up wait is longer.
+const CANVAS_MS = { "hallway3d.html": 300000 };
+const canvasMs = (page) => Number(process.env.SMOKE_CANVAS_MS) || CANVAS_MS[page] || 150000;
 const PAGES = [
   ["index.html", false, null], ["hallway3d.html", true, "/index.html"], ["classroom3d.html", true, "/index.html"], ["auditorium3d.html", true, "/index.html?view=stage"],
   ["news.html", false, "/index.html?view=news"], ["phone.html", false, null], ["opendoor.html", false, "/index.html?view=open"], ["fieldtrip.html", true, "/index.html?view=trip"],
@@ -79,11 +84,11 @@ for (const [page, needsCanvas, redirect] of PAGES) {
           }
           if (!found) problems.push("frames seen: " + p.frames().map((f) => f.url().replace(BASE, "")).join(", ").slice(0, 300));
         } else {
-          await p.waitForSelector("canvas", { timeout: 150000, state: "attached" });
+          await p.waitForSelector("canvas", { timeout: canvasMs(page), state: "attached" });
           found = true;
         }
       } catch { /* falls through to the failure below */ }
-      if (!found) problems.push(redirect ? "no <canvas> appeared within 240s" : "no <canvas> appeared within 150s");
+      if (!found) problems.push(redirect ? "no <canvas> appeared within 240s" : `no <canvas> appeared within ${canvasMs(page) / 1000}s`);
     }
     await p.waitForTimeout(needsCanvas ? 5000 : (page === "index.html" || redirect ? 8000 : 3000));
     if (process.env.SMOKE_SHOTS) await p.screenshot({ path: `${process.env.SMOKE_SHOTS}/${page.replace(/\//g, "_")}.png` }).catch(() => {});
