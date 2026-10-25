@@ -203,7 +203,7 @@ async function loadLive(){
  catch(e){LIVE=null;FEED='SAMPLE DATA';updateLocUi();}}
 function updateLocUi(){const el=document.getElementById('locLabel');if(!el)return;
  el.textContent=LIVE?`${LIVE.editionLabel} · ${LIVE.localDate} · ${LIVE.place}${LIVE.llm?'':''}`:'Sample show (no news service)';
- const ct=document.getElementById('ctStories');if(ct)ct.textContent=LIVE?`${LIVE.stories.length} stories (${LIVE.local.length} local, ${LIVE.national.length} national, ${LIVE.world.length} world, ${(LIVE.learn||[]).length} learn)`:`;const rs=document.getElementById('res');if(rs)rs.innerHTML=LIVE&&LIVE.resources?'<b style="font-size:13px;align-self:center">Watch &amp; learn:</b>'+LIVE.resources.map(r=>`<a href="${r.url}" target="_blank" rel="noopener">${r.name}<small>${r.what}</small></a>`).join(''):'';}
+ const ct=document.getElementById('ctStories');if(ct)ct.textContent=LIVE?`${LIVE.stories.length} stories (${LIVE.local.length} local, ${LIVE.national.length} national, ${LIVE.world.length} world, ${(LIVE.learn||[]).length} learn)`:'';const rs=document.getElementById('res');if(rs)rs.innerHTML=LIVE&&LIVE.resources?'<b style="font-size:13px;align-self:center">Watch &amp; learn:</b>'+LIVE.resources.map(r=>`<a href="${r.url}" target="_blank" rel="noopener">${r.name}<small>${r.what}</small></a>`).join(''):'';}
 const stamp=()=>LIVE?`${LIVE.editionLabel.toUpperCase()} · ${(LIVE.place||'').split(',')[0].toUpperCase()}`:'';
 function askLocation(){return new Promise(res=>{if(!navigator.geolocation)return res(false);
  navigator.geolocation.getCurrentPosition(pos=>{LOC={lat:+pos.coords.latitude.toFixed(3),lon:+pos.coords.longitude.toFixed(3)};store.set('unify.loc',LOC);res(true);},()=>res(false),{timeout:8000,maximumAge:3600e3});});}
@@ -483,7 +483,7 @@ const E={seg:0,beat:0,beatT:0,segT:0,paused:false,started:false,sound:true,busy:
 const CAMS={wide:{cx:480,cy:270,z:1},A1:{cx:285,cy:250,z:1.4},A2:{cx:425,cy:250,z:1.4},wx:{cx:650,cy:280,z:1.3}};
 let curClip=null;
 /* ---- rundown: every field report in the show (no cap), filter by tier or search, tap to jump ---- */
-const TOPIC_ICON={weather:'☁',sports:'⚽',politics:'🏛',economy:'📈',health:'♥',science:'⚛',space:'🚀',tech:'💻',environment:'🌿',education:'🎓',arts:'🎭',food:'🍎',transport:'🚆',emergency:'⚠',community:'🏘',world:'🌍',general:'📰',robotics:'🤖',garden:'🌱',musical:'🎭',story:'📰'};
+const TOPIC_ICON={weather:'☁',sports:'⚽',politics:'🏛',economy:'📈',health:'♥',science:'⚛',space:'🚀',tech:'💻',environment:'🌿',education:'🎓',arts:'🎭',food:'🍎',transport:'🚆',emergency:'⚠',community:'🏘',world:'🌍',general:'📰',robotics:'🤖',garden:'🌱',musical':'🎭',story:'📰'};
 let RFILTER='all',RQUERY='';
 function estDur(seg){return seg.beats.reduce((n,b)=>n+Math.max(1.8,b.text.split(' ').length*.38+.4),0);}
 function renderClips(){
@@ -531,7 +531,7 @@ function buildShow(){
  const wb=[];
  wb.push({who:'A1',text:pick(TOSS_WX),cam:'wide',waitWalk:true,do:()=>{A.A2.goTo(PATH_OUT);}});
  wb.push({who:'A2',text:"Thanks, Maya. Let's take a look at the map.",cam:'wx',lower:{title:'Marcus Reed',sub:'Weather'}});
- WX.forEach((s,i)=>{const ADJ={rain:'rainy',snow:'snowy',storms:'stormy'},lb=s.label.toLowerCase(),ln=LIVE?`looking ${ADJ[lb]||lb}, with a high of ${s.t} degrees${s.rain>=40?' and about a '+s.rain+' percent chance of rain':''}`:pick(WXTYPES[s.type].lines).replace('{t}',s.t);
+ WX.forEach((s,i)=>{const ADJ={rain:'rainy',snow:'snowy',storms':'stormy'},lb=s.label.toLowerCase(),ln=LIVE?`looking ${ADJ[lb]||lb}, with a high of ${s.t} degrees${s.rain>=40?' and about a '+s.rain+' percent chance of rain':''}`:pick(WXTYPES[s.type].lines).replace('{t}',s.t);
   wb.push({who:'A2',text:LIVE?`${s.name} is ${ln}.`:`${SPOTINTRO[i].replace('{n}',s.name)} ${ln}.`,cam:'wx',point:i,lower:{title:`${s.name}  ${s.t}°`,sub:s.label}});});
  wb.push({who:'A2',text:"That's the forecast. Back to you, Maya.",cam:'wx',point:null,do:()=>{A.A2.goTo(PATH_BACK);}});
  wb.push({who:'A1',text:"Thanks, Marcus. Keep an umbrella handy if you're heading out.",cam:'A1',waitWalk:true});
