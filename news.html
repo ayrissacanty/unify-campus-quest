@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>if(parent===window)location.replace('index.html?view=news');</script>
 <meta charset="utf-8">
 <script src="look.js"></script>
 
@@ -202,7 +203,7 @@ async function loadLive(){
  catch(e){LIVE=null;FEED='SAMPLE DATA';updateLocUi();}}
 function updateLocUi(){const el=document.getElementById('locLabel');if(!el)return;
  el.textContent=LIVE?`${LIVE.editionLabel} · ${LIVE.localDate} · ${LIVE.place}${LIVE.llm?'':''}`:'Sample show (no news service)';
- const ct=document.getElementById('ctStories');if(ct)ct.textContent=LIVE?`${LIVE.stories.length} stories (${LIVE.local.length} local, ${LIVE.national.length} national, ${LIVE.world.length} world, ${(LIVE.learn||[]).length} learn)`:'';const rs=document.getElementById('res');if(rs)rs.innerHTML=LIVE&&LIVE.resources?'<b style="font-size:13px;align-self:center">Watch &amp; learn:</b>'+LIVE.resources.map(r=>`<a href="${r.url}" target="_blank" rel="noopener">${r.name}<small>${r.what}</small></a>`).join(''):'';}
+ const ct=document.getElementById('ctStories');if(ct)ct.textContent=LIVE?`${LIVE.stories.length} stories (${LIVE.local.length} local, ${LIVE.national.length} national, ${LIVE.world.length} world, ${(LIVE.learn||[]).length} learn)`:`;const rs=document.getElementById('res');if(rs)rs.innerHTML=LIVE&&LIVE.resources?'<b style="font-size:13px;align-self:center">Watch &amp; learn:</b>'+LIVE.resources.map(r=>`<a href="${r.url}" target="_blank" rel="noopener">${r.name}<small>${r.what}</small></a>`).join(''):'';}
 const stamp=()=>LIVE?`${LIVE.editionLabel.toUpperCase()} · ${(LIVE.place||'').split(',')[0].toUpperCase()}`:'';
 function askLocation(){return new Promise(res=>{if(!navigator.geolocation)return res(false);
  navigator.geolocation.getCurrentPosition(pos=>{LOC={lat:+pos.coords.latitude.toFixed(3),lon:+pos.coords.longitude.toFixed(3)};store.set('unify.loc',LOC);res(true);},()=>res(false),{timeout:8000,maximumAge:3600e3});});}
