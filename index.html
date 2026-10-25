@@ -233,6 +233,13 @@ setTimeout(()=>{try{if(window.UnifyMail&&UnifyMail.watchUnread)UnifyMail.watchUn
  m.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('button');if(b&&b.id!=='tBeam')set(false);});
  addEventListener('keydown',e=>{if(e.key==='Escape'&&body.classList.contains('menu-open')){set(false);e.stopImmediatePropagation();e.preventDefault();}},true);
 })();
+/* deep links into the app: bare room pages bounce here with ?subject= or ?view= so one address opens any room */
+(()=>{try{const q=new URLSearchParams(location.search),s=q.get('subject'),v=q.get('view');
+ if(s&&NAMES[s])enter(s,s,[]);
+ else if(v==='news'||v==='mail'||v==='desk'||v==='dorm'){$('room').textContent='';fromDoor=false;show(v);}
+ else if(v==='stage'||v==='auditorium')enter('news','news',[]);
+ else if(v==='open')enter('open','open',[]);
+ else if(v==='trip')enter('trip','trip',[]);}catch(e){}})();
 window.__academy={show,enter,leave,get view(){return view;}};
 })();
 </script>
