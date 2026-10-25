@@ -2,12 +2,14 @@ import { HallScene, GOTO } from "../src/hall3d/HallScene";
 import { HallSocial } from "../src/hall3d/hallsocial";
 import { AvatarCreator } from "../src/hall3d/avatarui";
 import { Social } from "../src/hall3d/social";
+import { HAIR_COLORS, CLOTH_COLORS, outfitOf, wearOutfit, type AvatarSpec, type Outfit } from "../src/hall3d/avatar";
 import { PERIODS, clockStr } from "../src/hall3d/logic";
 import { openTimes } from "../src/game/timesui";
 import { Progress, ALL_SUBJECTS } from "../src/game/progress";
 import { runPlacement } from "../src/game/placement";
 import { openPic } from "../src/game/wallart";
 import { openNewsPanel } from "../src/game/newstv";
+import { openLibrary } from "../src/hall3d/libraryui";
 import { CURRICULUM } from "../src/class3d/curriculum";
 import { Lockers, lockerNear, slot as lockerSlot } from "../src/game/lockers";
 import { openLocker } from "../src/hall3d/lockerui";
@@ -25,7 +27,7 @@ import { Cosm } from "../src/game/cosmetics";
 import { Story, lastTextDay, markTextDay } from "../src/game/community";
 import { Safety } from "../src/game/safety";
 import { Events } from "../src/game/events";
-import { Gfx } from "../src/hall3d/mood";
+import { Gfx, Mood } from "../src/hall3d/mood";
 import { isPixar } from "../src/shared/look";
 const $ = (id: string) => document.getElementById(id)!;
 const hall = new HallScene($("game")); (window as any).__hall = hall;
@@ -61,6 +63,7 @@ addEventListener("keydown", (e) => { if ((e.key === "b" || e.key === "B") && !(e
 setInterval(() => { const p = hall.player.pos, b = hall.boardPos; bchip.classList.toggle("show", Math.hypot(p.x - b.x, p.z - b.z) < 3.4 && p.z > b.z - 0.2); }, 250);
 GOTO.forEach((g) => { const b = document.createElement("button"); b.innerHTML = `<i style="background:${g.color}"></i>${g.label}`; b.onclick = () => { menu.classList.remove("show"); hall.goTo(g.key); }; menu.appendChild(b); });
 $("bGo").onclick = () => toggle(menu);
+const look = $("bLook") as HTMLSelectElement; look.value = Mood.palette === "auto" ? "auto" : Mood.palette; look.onchange = () => Mood.set(look.value === "auto" ? null : look.value);
 $("game").addEventListener("pointerdown", () => menu.classList.remove("show"));
 $("bSpd").onclick = () => { hall.speed = hall.speed === 1 ? 4 : hall.speed === 4 ? 16 : 1; $("bSpd").textContent = `Speed x${hall.speed}`; };
 const NAMES = { close: "Close-up", overview: "Overview", first: "First person" } as const;
@@ -68,7 +71,7 @@ $("bView").onclick = () => { const v = hall.cycleView(); $("bView").textContent 
 setInterval(() => {
   const P = PERIODS[Math.max(0, hall.idx)]; $("clk").textContent = clockStr(hall.clock); $("per").textContent = P.name; ($("fill") as HTMLElement).style.width = `${((hall.clock - P.start) / P.len) * 100}%`;
   const seen = hall.students.filter((x) => !x.hidden).length; $("cnt").textContent = `${seen} in the hall, ${hall.students.length - seen} in class or away`;
-  const [r, g, b, a] = hall.tint; ($("tint") as HTMLElement).style.background = `rgba(${r | 0},${g | 0},${b | 0},${a})`;
+  const [r, g, b, a] = hall.tint; if (!isPixar()) ($("tint") as HTMLElement).style.background = `rgba(${r | 0},${g | 0},${b | 0},${a})`;
 }, 200);
 if (!isPixar()) (() => { const c = document.createElement("canvas"); c.width = c.height = 256; const x = c.getContext("2d")!, d = x.createImageData(256, 256);
   for (let i = 0; i < d.data.length; i += 4) { const v = 226 + Math.random() * 29; d.data[i] = v; d.data[i + 1] = v * 0.965; d.data[i + 2] = v * 0.9; d.data[i + 3] = 255; }
@@ -92,8 +95,11 @@ $("bOpenLocker").onclick = () => { const p = hall.player.pos, s = Lockers.neares
 /* ---- wall pictures and the news TV are tappable ---- */
 hall.onPic = (pid, _title, subject) => { lock(true); const ls = (CURRICULUM as any)[subject] ?? [], cur = ls[Progress.index(subject as any, ls.length)]; openPic(pid, { lesson: cur?.title, onClose: () => lock(false) }); };
 hall.onTV = () => { lock(true); openNewsPanel(() => lock(false), () => { if (parent !== window) parent.postMessage({ type: "unify:open", view: "news" }, "*"); else location.assign("news.html"); }); };
+hall.onBooks = () => { lock(true); openLibrary($("libHost"), () => lock(false)); };
+hall.onNewsroom = () => { if (parent !== window) parent.postMessage({ type: "unify:open", view: "news" }, "*"); else location.assign("news.html"); };
+$("bBooks").onclick = () => { lock(true); openLibrary($("libHost"), () => lock(false)); };
 
-/* ---- the school day: ride the bus in, walk to the bulletin board, make the schedule, go inside (assembly, then first class); sit at Chat Chow when idle ---- */
+/* ---- the school day: a car drops you off while the bus unloads, then the bulletin board, the schedule, and inside ---- */
 const todayKey = () => new Date().toDateString();
 const assemblyDone = () => { try { return localStorage.getItem("unify.assembly.day") === todayKey(); } catch { return false; } };
 const firstClass = () => { let best: { s: string; m: number } | null = null; for (const s of ALL_SUBJECTS) { const m = Progress.pickedFor(s, false); if (m !== null && (!best || m < best.m)) best = { s, m }; } return best?.s ?? null; };
@@ -111,7 +117,33 @@ const atBoard = () => {
 };
 const skip = document.createElement("button"); skip.id = "skipArr"; skip.textContent = "Skip arrival ▸"; skip.style.cssText = "position:fixed;right:12px;bottom:96px;z-index:50;display:none;font:inherit;font-size:14px;padding:6px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.7);background:#F3E7CF;color:#4A3B3F;box-shadow:0 2px 0 #C9B28A;cursor:pointer"; document.body.appendChild(skip); skip.onclick = () => hall.skipCine();
 setInterval(() => { skip.style.display = hall.cine || (dayStarted && hall.inputLocked && !document.querySelector(".tmWrap.show, #creator.show") && hall.bus?.visible) ? "block" : "none"; }, 300);
-const startDay = () => { if (dayStarted || new URLSearchParams(location.search).has("nobus")) return; dayStarted = true; flowActive = true; setTimeout(() => hall.startArrival(atBoard), 400); };
+const startDay = () => { if (dayStarted || new URLSearchParams(location.search).has("nobus")) return; dayStarted = true; flowActive = true; setTimeout(() => hall.startMorning(() => { flowActive = false; inside(); }), 400); };
+const outfitKey = "unify.outfit.saved";
+const todayStr = () => new Date().toDateString();
+const weekStr = () => { const d = new Date(), one = new Date(d.getFullYear(), 0, 1); return d.getFullYear() + "-" + Math.ceil(((+d - +one) / 86400000 + one.getDay() + 1) / 7); };
+const readFit = (): { day: string; week: string; daily: Outfit; weekly: Outfit } | null => { try { return JSON.parse(localStorage.getItem(outfitKey) || "null"); } catch { return null; } };
+const saveFit = (spec: AvatarSpec) => { const prev = readFit(), o = outfitOf(spec, "Day"); const weekly = prev && prev.week === weekStr() && prev.weekly ? prev.weekly : o; localStorage.setItem(outfitKey, JSON.stringify({ day: todayStr(), week: weekStr(), daily: o, weekly })); };
+const skipFit = (spec: AvatarSpec) => { const s = readFit(); if (s?.daily && s.day === todayStr()) return wearOutfit(spec, s.daily); if (s?.weekly) return wearOutfit(spec, s.weekly); const slot = spec.closet?.find(Boolean); return slot ? wearOutfit(spec, slot) : spec; };
+const dressPanel = () => {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:60;width:min(440px,94vw);padding:12px;border-radius:16px;background:#F3E7CF;color:#4A3B3F;font:15px Fredoka,Trebuchet MS,sans-serif;border:2px solid #EAB94E;box-shadow:0 8px 24px rgba(60,40,30,.35)";
+  const title = document.createElement("div"); title.textContent = "45 seconds to change today's clothes or hair colour. Hair length and texture stay the same."; title.style.marginBottom = "8px";
+  const left = document.createElement("b"); left.textContent = "0:45"; left.style.float = "right";
+  const row = (label: string) => { const d = document.createElement("div"); d.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0"; const t = document.createElement("span"); t.textContent = label; d.append(t); return d; };
+  const hairs = row("Hair"), clothes = row("Clothes");
+  HAIR_COLORS.slice(0, 8).forEach((c) => { const b = document.createElement("button"); b.style.cssText = `width:28px;height:28px;border-radius:50%;border:2px solid #fff;background:${c}`; b.onclick = () => hall.paintHair(c); hairs.append(b); });
+  CLOTH_COLORS.slice(0, 8).forEach((c) => { const b = document.createElement("button"); b.style.cssText = `width:28px;height:28px;border-radius:8px;border:2px solid #fff;background:${c}`; b.onclick = () => { const pants = CLOTH_COLORS[(CLOTH_COLORS.indexOf(c) + 3) % CLOTH_COLORS.length]; hall.paintClothes(c, pants); }; clothes.append(b); });
+  const actions = document.createElement("div"); actions.style.cssText = "display:flex;gap:8px;margin-top:8px";
+  const skipB = document.createElement("button"), doneB = document.createElement("button");
+  const bs = "font:inherit;padding:8px 12px;border-radius:12px;border:1px solid #C9B28A;background:#fff;color:#4A3B3F;cursor:pointer";
+  skipB.textContent = "Skip — wear my saved outfit"; skipB.style.cssText = bs; doneB.textContent = "This outfit"; doneB.style.cssText = bs + ";background:#EAB94E;font-weight:700";
+  let ended = false; const end = (skip: boolean) => { if (ended) return; ended = true; clearInterval(timer); if (skip) hall.wearDress(skipFit(hall.currentDress())); saveFit(hall.currentDress()); Social.setProfile({ avatar: hall.currentDress() }); wrap.remove(); hall.finishDress(); };
+  skipB.onclick = () => end(true); doneB.onclick = () => end(false); actions.append(skipB, doneB);
+  wrap.append(left, title, hairs, clothes, actions); document.body.appendChild(wrap);
+  let sec = 45; const timer = setInterval(() => { sec -= 1; left.textContent = `0:${String(Math.max(0, sec)).padStart(2, "0")}`; if (sec <= 0) end(false); }, 1000);
+};
+hall.onDress = dressPanel;
+hall.onBulletin = () => { openTimes({ mustPick: true }); const done = () => { removeEventListener("unify:times-closed", done); hall.leaveForBus(); }; addEventListener("unify:times-closed", done); };
 if (Social.profile.hasAvatar) setTimeout(startDay, 1500); else creator.onSave = ((orig) => (spec, nm) => { orig(spec, nm); setTimeout(startDay, 1400); })(creator.onSave);
 addEventListener("message", (e) => { const m = e.data; if (m && m.type === "unify:exit" && afterStage) { const f = afterStage; afterStage = null; classGuided = true; setTimeout(f, 700); } });
 /* ---- visible guide: assembly first (light pillar over the auditorium + banner + "Take me there"), then the first class ---- */
@@ -185,7 +217,8 @@ addEventListener("storage", (e) => { if (e.key === "unify.assembly.day") Quests.
 addEventListener("unify:event-adopt", () => hall.setAvatar(Social.profile.avatar));
 // the Today panel
 const hubHooks = { applyTheme, openGames: () => { lock(true); openGames(() => lock(false)); }, openTrip: () => { if (parent !== window) parent.postMessage({ type: "unify:open", view: "trip" }, "*"); else location.assign("fieldtrip.html"); }, goTo: (k: string) => hall.goTo(k) };
-$("bToday").onclick = () => { lock(true); openHub({ ...hubHooks, onClose: () => lock(false) }); };
+const todayBtn = $("bToday");
+if (todayBtn) todayBtn.onclick = () => { lock(true); openHub({ ...hubHooks, onClose: () => lock(false) }); };
 addEventListener("keydown", (e) => { if ((e.key === "y" || e.key === "Y") && !(e.target as HTMLElement)?.closest("input,textarea") && !hall.inputLocked) { lock(true); openHub({ ...hubHooks, onClose: () => lock(false) }); } });
 setInterval(() => Safety.tick(), 60e3); let nudged = 0; setInterval(() => { if (Safety.overLimit() && Date.now() - nudged > 15 * 60e3) { nudged = Date.now(); hall.onToast("You've reached your daily school time. Time for a stretch, a snack and some sunshine! 🌞"); } }, 30e3);
 if (Events.today().live && !World.prefs.quiet) setTimeout(() => hall.onToast(Events.banner()), 4000);
