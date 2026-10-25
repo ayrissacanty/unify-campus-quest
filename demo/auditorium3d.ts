@@ -7,12 +7,13 @@ let sound = true, cancelled = false, running = false, newsFrame: HTMLIFrameEleme
 const cap = $("cap"), capName = $("capName"), capText = $("capText");
 const caption = (n: string, t: string) => { cap.classList.add("show"); capName.textContent = n; capText.textContent = t; };
 const post = (m: any) => { try { parent.postMessage(m, "*"); } catch { /* standalone */ } };
+const leave = () => { cancelled = true; try { speechSynthesis.cancel(); } catch { /* none */ } if (parent !== window) post({ type: "unify:stage-exit" }); else history.back(); };   // standalone: the browser Back button's job, done for you
 
 /* ---- view buttons ---- */
 document.querySelectorAll<HTMLElement>("[data-v]").forEach((b) => (b.onclick = () => { A.setView(b.dataset.v!); document.querySelectorAll("[data-v]").forEach((x) => x.classList.toggle("on", x === b)); }));
 $("bSound").onclick = () => { sound = !sound; $("bSound").textContent = sound ? "🔊 Sound on" : "🔇 Sound off"; if (!sound) try { speechSynthesis.cancel(); } catch { /* none */ } };
 const prayerBtn = $("bPrayer"); const paintPrayer = () => { prayerBtn.textContent = prayerOn() ? "Prayer: on" : "Prayer: off"; }; paintPrayer(); prayerBtn.onclick = () => { setPrayer(!prayerOn()); paintPrayer(); };
-$("bLeave").onclick = () => { cancelled = true; try { speechSynthesis.cancel(); } catch { /* none */ } post({ type: "unify:stage-exit" }); };
+$("bLeave").onclick = leave;
 
 /* ---- the live newsroom on the big screen (the same broadcast as the Newsroom tab, with anchors and field reports) ---- */
 function startNews() {
@@ -27,7 +28,7 @@ $("bNews").onclick = liveNews;
 async function assembly() {
   if (running) return; running = true; cancelled = false; A.chatter = true; setTimeout(() => { A.chatter = false; }, 3800); $("bAssembly").hidden = true; ($("ask") as HTMLElement).classList.remove("show"); A.setScreen("assembly", "Good morning, UNIFY Academy", []);
   const done = await runAssembly({ A, caption, soundOn: () => sound, cancelled: () => cancelled }); running = false;
-  if (done) { caption("Assembly", "Assembly is over. Heading to class."); setTimeout(() => { cap.classList.remove("show"); post({ type: "unify:stage-exit" }); }, 2800); } else if (!cancelled) liveNews();
+  if (done) { caption("Assembly", "Assembly is over. Heading to class."); setTimeout(() => { cap.classList.remove("show"); leave(); }, 2800); } else if (!cancelled) liveNews();
 }
 /* ---- stage shows: plays, reenactments, musicals (one rotates in daily; Fridays are Showtime) ---- */
 const todays = showOfDay(), showBtn = $("bShow");
