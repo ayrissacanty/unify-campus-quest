@@ -483,7 +483,7 @@ const E={seg:0,beat:0,beatT:0,segT:0,paused:false,started:false,sound:true,busy:
 const CAMS={wide:{cx:480,cy:270,z:1},A1:{cx:285,cy:250,z:1.4},A2:{cx:425,cy:250,z:1.4},wx:{cx:650,cy:280,z:1.3}};
 let curClip=null;
 /* ---- rundown: every field report in the show (no cap), filter by tier or search, tap to jump ---- */
-const TOPIC_ICON={weather:'☁',sports:'⚽',politics:'🏛',economy:'📈',health:'♥',science:'⚛',space:'🚀',tech:'💻',environment:'🌿',education:'🎓',arts:'🎭',food:'🍎',transport:'🚆',emergency:'⚠',community:'🏘',world:'🌍',general:'📰',robotics:'🤖',garden:'🌱',musical':'🎭',story:'📰'};
+const TOPIC_ICON={weather:'☁',sports:'⚽',politics:'🏛',economy:'📈',health:'♥',science:'⚛',space:'🚀',tech:'💻',environment:'🌿',education:'🎓',arts:'🎭',food:'🍎',transport:'🚆',emergency:'⚠',community:'🏘',world:'🌍',general:'📰',robotics:'🤖',garden:'🌱',musical:'🎭',story:'📰'};
 let RFILTER='all',RQUERY='';
 function estDur(seg){return seg.beats.reduce((n,b)=>n+Math.max(1.8,b.text.split(' ').length*.38+.4),0);}
 function renderClips(){
@@ -531,7 +531,7 @@ function buildShow(){
  const wb=[];
  wb.push({who:'A1',text:pick(TOSS_WX),cam:'wide',waitWalk:true,do:()=>{A.A2.goTo(PATH_OUT);}});
  wb.push({who:'A2',text:"Thanks, Maya. Let's take a look at the map.",cam:'wx',lower:{title:'Marcus Reed',sub:'Weather'}});
- WX.forEach((s,i)=>{const ADJ={rain:'rainy',snow:'snowy',storms':'stormy'},lb=s.label.toLowerCase(),ln=LIVE?`looking ${ADJ[lb]||lb}, with a high of ${s.t} degrees${s.rain>=40?' and about a '+s.rain+' percent chance of rain':''}`:pick(WXTYPES[s.type].lines).replace('{t}',s.t);
+ WX.forEach((s,i)=>{const ADJ={rain:'rainy',snow:'snowy',storms:'stormy'},lb=s.label.toLowerCase(),ln=LIVE?`looking ${ADJ[lb]||lb}, with a high of ${s.t} degrees${s.rain>=40?' and about a '+s.rain+' percent chance of rain':''}`:pick(WXTYPES[s.type].lines).replace('{t}',s.t);
   wb.push({who:'A2',text:LIVE?`${s.name} is ${ln}.`:`${SPOTINTRO[i].replace('{n}',s.name)} ${ln}.`,cam:'wx',point:i,lower:{title:`${s.name}  ${s.t}°`,sub:s.label}});});
  wb.push({who:'A2',text:"That's the forecast. Back to you, Maya.",cam:'wx',point:null,do:()=>{A.A2.goTo(PATH_BACK);}});
  wb.push({who:'A1',text:"Thanks, Marcus. Keep an umbrella handy if you're heading out.",cam:'A1',waitWalk:true});
