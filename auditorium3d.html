@@ -3,9 +3,10 @@
 <head>
 <script>if(parent===window)location.replace('index.html?view=stage');</script>
 <meta charset="utf-8">
+<script src="look.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>UNIFY Auditorium</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
 <style>
 :root{--kraft:#F3E7CF;--edge:#C9B28A;--ink:#4A3B3F;--acc:#E07A66;--ui:"Fredoka","Trebuchet MS",system-ui,sans-serif}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -30,7 +31,7 @@ button.on{background:var(--acc);color:#fff;border-color:var(--acc)}button[hidden
 </div>
 <div id="ask"><b>Ask the anchors (live)</b><form id="askForm"><input id="askIn" maxlength="140" placeholder="Ask about the news or weather…" autocomplete="off"><button type="submit">Ask</button></form></div>
 <div id="cap"><div id="capName"></div><div id="capText"></div></div>
-<script src="demo/dist/auditorium3d.js"></script>
+<script src="demo/dist/auditorium3d.js?v=8"></script>
 <script src="calmui.js"></script>
 </body>
 </html>
