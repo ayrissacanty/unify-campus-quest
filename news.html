@@ -794,7 +794,7 @@ window.__unify={E,anchors,go,startSeg,ask:askAnchors,get SHOW(){return SHOW;},re
 // academy shell: silence + pause when the tab is hidden, resume when it comes back
 let autoPaused=false;
 addEventListener('message',e=>{const m=e.data;if(!m)return;
- if(m.type==='unify:hide'){try{speechSynthesis.cancel();}catch(_){ }if(E.started&&!E.paused){autoPaused=true;$('bPlay').click();}}
+ if(m.type==='unify:hide'){try{speechSynthesis.cancel();}catch(_){}if(E.started&&!E.paused){autoPaused=true;$('bPlay').click();}}
  else if(m.type==='unify:show'&&autoPaused){autoPaused=false;if(E.paused)$('bPlay').click();if(E.started&&curBeat())speak(curBeat());}});
 SHOW=buildShow();renderClips();
 requestAnimationFrame(frame);
