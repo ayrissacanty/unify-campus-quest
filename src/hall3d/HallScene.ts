@@ -1514,7 +1514,7 @@ export class HallScene {
     if (this.peek) { this.scene.remove(this.peek); (this.peek.material as THREE.Material).dispose(); this.peek = null; }
     const si = SUBJECTS.indexOf(subject as Subject), swap = PERIODS[Math.max(0, this.idx)].swap ? 1 : 0, attendees = subject === "news" || subject === "open" ? [] : this.students.filter((_, n) => (n + swap) % 4 === si).map((x) => x.def?.id).filter((id) => id != null);
     if (parent !== window) parent.postMessage({ type: "unify:enter", subject, room: subject, attendees }, "*");
-    else this.onToast(`${this.roomLabel(subject)}: open the school page to go inside`);
+    else location.assign(subject === "news" ? "auditorium3d.html" : subject === "open" ? "opendoor.html" : `classroom3d.html?subject=${subject}`);   // standalone hallway: walk straight into the room (browser Back returns here)
   }
 
   /* ------------------------------------------------------------ schedule -> student intents */
