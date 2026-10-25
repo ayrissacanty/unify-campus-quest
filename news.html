@@ -3,10 +3,12 @@
 <head>
 <script>if(parent===window)location.replace('index.html?view=news');</script>
 <meta charset="utf-8">
+<script src="look.js"></script>
+
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>UNIFY News — Live Studio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
 <style>
 /* Paper-cut newsroom: kraft sheet, cut-card controls with a hard lower edge + soft cast shadow, shared grain overlay. */
 :root{--bg:#EADFCB;--panel:#F3E7CF;--line:#C9B28A;--fg:#4A3B3F;--mute:#8A7A70;--blue:#4F91C7;--coral:#E07A66;--sage:#4E8A64;--edge:#C9B28A;
@@ -101,7 +103,7 @@ button.on{background:var(--coral);color:#fff;box-shadow:0 2px 0 #b95a48,0 6px 10
    <div class="vbar" id="vbar" hidden><i id="vfill"></i></div><div class="vgrid" id="vgrid"></div></details>
   <div class="cliphead" id="clipHead" hidden>Field reports</div>
   <div class="clips" id="clips" aria-label="Field reports"></div>
-  <p class="note">With the news service running (see README) the show pulls the weather plus every local, national and world story from the viewer's own area for the current morning or evening edition, with no cap on how many reports air. Each report gets a generated paper-cut video built from the story's own words: a topic scene, real figures if the text has any, a map with the place pinned, and a title card. Use Save report as video to download one. Without the service you see a sample show.</p>
+  <p class="note">The show keeps at most 20 field reports. Younger grades only see stories that are fine for everyone. High school can see the wider feed. Each report is drawn in the paper-cut news style and can be saved as a short animated video.</p>
 </div>
 
 <script src="demo/dist/newschars.js"></script>
@@ -189,7 +191,14 @@ async function loadLive(){
  try{p.set('tz',Intl.DateTimeFormat().resolvedOptions().timeZone);}catch(e){}
  p.set('grade',q.get('grade')||gradeFromAvatar()||'6');p.set('edition',edNow());
  try{const ac=new AbortController(),to=setTimeout(()=>ac.abort(),14000);const r=await fetch(base+(base.includes('?')?'&':'?')+p.toString(),{cache:'no-store',signal:ac.signal});clearTimeout(to);
-  if(!r.ok)throw new Error(r.status);const j=await r.json();if(!j.weather||j.weather.length<4)throw new Error('no weather');LIVE=j;FEED='LIVE FEED';
+  if(!r.ok)throw new Error(r.status);const j=await r.json();if(!j.weather||j.weather.length<4)throw new Error('no weather');
+  const grade=+(q.get('grade')||gradeFromAvatar()||'6'), hs=grade>=9;
+  const rough=/war|death|dead|kill|murder|shoot|gun|sex|crime|bomb|terror|suicide|drug|assault|stab/i;
+  const keep=s=>hs||!rough.test((s.headline||'')+' '+(s.snippet||'')+' '+(s.intro||''));
+  j.local=(j.local||[]).filter(keep);j.national=(j.national||[]).filter(keep);j.world=(j.world||[]).filter(keep);j.learn=(j.learn||[]).filter(keep);
+  while(j.local.length+j.national.length+j.world.length+j.learn.length>20){if(j.world.length>2)j.world.pop();else if(j.national.length>2)j.national.pop();else if(j.learn.length)j.learn.pop();else if(j.local.length)j.local.pop();else break;}
+  j.stories=[...j.local,...j.national,...j.world,...j.learn].slice(0,20);
+  LIVE=j;FEED='LIVE FEED';
   HOME=NV&&j.lat!=null?{name:(j.place||'').split(',')[0],lat:j.lat,lon:j.lon,kind:'city'}:null;updateLocUi();}
  catch(e){LIVE=null;FEED='SAMPLE DATA';updateLocUi();}}
 function updateLocUi(){const el=document.getElementById('locLabel');if(!el)return;
@@ -785,7 +794,7 @@ window.__unify={E,anchors,go,startSeg,ask:askAnchors,get SHOW(){return SHOW;},re
 // academy shell: silence + pause when the tab is hidden, resume when it comes back
 let autoPaused=false;
 addEventListener('message',e=>{const m=e.data;if(!m)return;
- if(m.type==='unify:hide'){try{speechSynthesis.cancel();}catch(_){}if(E.started&&!E.paused){autoPaused=true;$('bPlay').click();}}
+ if(m.type==='unify:hide'){try{speechSynthesis.cancel();}catch(_){ }if(E.started&&!E.paused){autoPaused=true;$('bPlay').click();}}
  else if(m.type==='unify:show'&&autoPaused){autoPaused=false;if(E.paused)$('bPlay').click();if(E.started&&curBeat())speak(curBeat());}});
 SHOW=buildShow();renderClips();
 requestAnimationFrame(frame);
