@@ -23,7 +23,9 @@ function pose(action: string, i: number, n: number): any {
 }
 interface Spec { action: string; frames: number; fps: number; loop: boolean; dirs: Direction[]; k?: number; prefix?: string }
 export const SPECS: Record<string, Spec> = {
-  idle: { action: "idle", frames: 4, fps: 3, loop: true, dirs: ALL8 }, walk: { action: "walk", frames: 8, fps: 9, loop: true, dirs: ALL8 }, sit: { action: "sit", frames: 4, fps: 3, loop: true, dirs: ALL8 },
+  idle: { action: "idle", frames: 4, fps: 3, loop: true, dirs: ALL8 }, walk: { action: "walk", frames: 8, fps: 9, loop: true, dirs: ALL8 },
+  // seated characters only ever face up_left (toward the board) - baking all 8 directions froze the page for minutes
+  sit: { action: "sit", frames: 4, fps: 3, loop: true, dirs: ["up_left"] },
   write: { action: "write", frames: 6, fps: 6, loop: true, dirs: ["up_left"] }, raisehand: { action: "raisehand", frames: 5, fps: 6, loop: false, dirs: ["up_left"] },
   talk: { action: "talk", frames: 6, fps: 6, loop: true, dirs: ALL8 }, point: { action: "point", frames: 6, fps: 6, loop: true, dirs: ALL8 }, boardwrite: { action: "boardwrite", frames: 8, fps: 8, loop: true, dirs: ALL8 },
   sv_sit: { action: "sit", frames: 4, fps: 3, loop: true, dirs: ["up"], k: 2, prefix: "sv_" }, sv_raisehand: { action: "raisehand", frames: 5, fps: 6, loop: false, dirs: ["up"], k: 2, prefix: "sv_" },
@@ -45,5 +47,41 @@ export function ensureSheet(scene: Phaser.Scene, character: string, look: Look, 
   for (let i = 0; i < sp.frames * sp.dirs.length; i++) tex.add(i, 0, (i % sp.frames) * fw, Math.floor(i / sp.frames) * fh, fw, fh);
   sp.dirs.forEach((d, row) => scene.anims.create({ key: `${key}:${d}`, frames: scene.anims.generateFrameNumbers(key, { start: row * sp.frames, end: row * sp.frames + sp.frames - 1 }), frameRate: sp.fps, repeat: sp.loop ? -1 : 0 }));
   return key;
+}
+
+/* ---------------------------------------------------------------- async bake queue
+ * The auditorium needs ~170 runtime sheets (player, teachers, 50 unique classmates). Baked synchronously that is minutes of
+ * frozen main thread (every frame is drawn with soft shadows, then uploaded through software GL). The queue bakes ONE sheet
+ * per frame instead: the page stays alive, the player appears first, and classmates settle in progressively. */
+interface BakeJob { scene: Phaser.Scene; character: string; look: Look; name: string; resolve: (key: string) => void }
+const BAKE_QUEUE: BakeJob[] = [];
+const BAKE_PENDING = new Map<string, { p: Promise<string>; job: BakeJob }>();
+let bakePumping = false;
+function bakePump() {
+  if (bakePumping) return; bakePumping = true;
+  const step = () => {
+    const job = BAKE_QUEUE.shift();
+    if (!job) { bakePumping = false; return; }
+    const sp = SPECS[job.name], k = sp.prefix ? `${sp.prefix}${job.character}_${sp.action}` : `${job.character}_${job.name}`;
+    try { ensureSheet(job.scene, job.character, job.look, job.name); } finally { BAKE_PENDING.delete(k); }
+    job.resolve(k);
+    job.scene.time.delayedCall(0, step);           // one sheet per frame: the browser stays responsive
+  };
+  step();
+}
+/** Same result as ensureSheet, but baked on the shared one-sheet-per-frame queue; resolves with the texture key.
+ *  priority=true jumps the queue - use it for anything the player is waiting on right now (lesson start, teacher, seat view). */
+export function ensureSheetQueued(scene: Phaser.Scene, character: string, look: Look, name: keyof typeof SPECS | string, priority = false): Promise<string> {
+  const sp = SPECS[name], key = sp.prefix ? `${sp.prefix}${character}_${sp.action}` : `${character}_${name}`;
+  if (scene.textures.exists(key)) return Promise.resolve(key);
+  const pend = BAKE_PENDING.get(key);
+  if (pend) { if (priority) { const i = BAKE_QUEUE.indexOf(pend.job); if (i > 0) { BAKE_QUEUE.splice(i, 1); BAKE_QUEUE.unshift(pend.job); } } return pend.p; }
+  let resolve!: (key: string) => void;
+  const p = new Promise<string>((res) => { resolve = res; });
+  const job: BakeJob = { scene, character, look, name, resolve };
+  if (priority) BAKE_QUEUE.unshift(job); else BAKE_QUEUE.push(job);
+  BAKE_PENDING.set(key, { p, job });
+  bakePump();
+  return p;
 }
 export const setRuntimeOutline = (c: string) => setOutline(c);
