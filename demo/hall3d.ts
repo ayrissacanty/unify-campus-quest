@@ -152,8 +152,7 @@ if (Social.profile.hasAvatar) setTimeout(startDay, 1500); else creator.onSave = 
 addEventListener("message", (e) => { const m = e.data; if (m && m.type === "unify:exit" && afterStage) { const f = afterStage; afterStage = null; classGuided = true; setTimeout(f, 700); } });
 /* ---- visible guide: assembly first (light pillar over the auditorium + banner + "Take me there"), then the first class ---- */
 {
-  const bar = document.createElement("div");
-  bar.id = "guideBar";
+  const bar = document.createElement("div"); bar.id = "guideBar";
   bar.style.cssText = "position:fixed;left:50%;top:58px;transform:translateX(-50%);z-index:48;display:none;align-items:center;gap:8px;max-width:94vw;padding:8px 10px 8px 14px;border-radius:16px;background:#F3E7CF;color:#4A3B3F;font:15px 'Fredoka','Trebuchet MS',system-ui,sans-serif;border:2px solid #EAB94E;box-shadow:0 3px 0 #C9B28A,0 10px 24px rgba(60,40,30,.4)";
   const txt = document.createElement("span"), go = document.createElement("button"), x = document.createElement("button");
   const bs = "font:inherit;border-radius:12px;border:1px solid rgba(255,255,255,.75);cursor:pointer;min-height:38px;touch-action:manipulation;";
