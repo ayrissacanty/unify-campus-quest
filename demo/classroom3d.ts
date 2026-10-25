@@ -149,6 +149,10 @@ addEventListener("message", (e) => { const d = e.data; if (d && d.type === "unif
 start(SUBJECTS.includes(wanted as Subject) ? (wanted as Subject) : "math").catch((e) => console.error("lesson start failed", e));
 void Packs.loadBundled();
 parent !== window && parent.postMessage({ type: "unify:auditorium-ready" }, "*");
+if (parent === window) {   // standalone visit (walked in from the bare hallway): no shell chrome, so give the room its own way back
+  const b = document.createElement("button"); b.className = "tag"; b.textContent = "\u25B2 Back to school";
+  b.onclick = () => history.back(); document.querySelector(".hud")?.appendChild(b);
+}
 void ALL_LESSONS; void TEACHER_BY_SUBJECT;
 import { VIDEO_BY_ID } from "../src/class3d/videos"; (window as any).__vids = VIDEO_BY_ID;
 (window as any).__labs = { open: (id: string, cfg?: string) => { const l = ALL_LESSONS.find((x) => x.lab.id === id && (!cfg || x.lab.cfg === cfg))!; openLabUI($("labHost"), l, room.seatedDefs(), () => {}); return l.title; } };
