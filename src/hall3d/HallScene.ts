@@ -653,7 +653,7 @@ export class HallScene {
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), leafCol = new THREE.Color();
     const greens = ["#1F8A45", "#2F9A4A", "#67B34A", "#E8833A", "#3CB371", "#C2452D", "#8FCB62"];
     spots.forEach((p, i) => {
-      q.identity(); m4.compose(new THREE.Vector3(p.x, 0.95 * p.s, p.z), q, new THREE.Vector3(p.s, p.s * 1.15, p.s)); trunk.setMatrixAt(i, m4);
+      q.identity(); m4.compose(new THREE.Vector3(p.x, 0.95 * p.s, p.z), q, new THREE.Vector3(p.s, p.s, p.s)); trunk.setMatrixAt(i, m4);
       for (let k = 0; k < 14; k++) {
         const a = hash(i, 20 + k) * 6.28, rad = (0.35 + hash(i, 40 + k) * 0.85) * p.s, y = (1.7 + hash(i, 60 + k) * 1.5) * p.s;
         e.set(0.4 + hash(i, 70 + k), a, 0.3); q.setFromEuler(e);
@@ -1514,7 +1514,7 @@ export class HallScene {
     if (this.peek) { this.scene.remove(this.peek); (this.peek.material as THREE.Material).dispose(); this.peek = null; }
     const si = SUBJECTS.indexOf(subject as Subject), swap = PERIODS[Math.max(0, this.idx)].swap ? 1 : 0, attendees = subject === "news" || subject === "open" ? [] : this.students.filter((_, n) => (n + swap) % 4 === si).map((x) => x.def?.id).filter((id) => id != null);
     if (parent !== window) parent.postMessage({ type: "unify:enter", subject, room: subject, attendees }, "*");
-    else this.onToast(`${this.roomLabel(subject)}: open the school page to go inside`);
+    else location.assign(subject === "news" ? "auditorium3d.html" : subject === "open" ? "opendoor.html" : `classroom3d.html?subject=${subject}`);   // standalone hallway: walk straight into the room (browser Back returns here)
   }
 
   /* ------------------------------------------------------------ schedule -> student intents */
