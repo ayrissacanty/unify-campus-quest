@@ -86,7 +86,7 @@ iframe.on{display:block}
 <div id="shotToast" role="status" aria-live="polite"></div>
 <div id="phoneWrap"><iframe id="fPhone" title="Flip phone" allowtransparency="true" allow="fullscreen"></iframe></div>
 <main>
-  <iframe id="fHall" class="on" src="hallway3d.html?v=39" title="Hallway"></iframe>
+  <iframe id="fHall" class="on" src="hallway3d.html?v=40" title="Hallway"></iframe>
   <iframe id="fNews" title="UNIFY News" allow="geolocation; autoplay"></iframe>
   <iframe id="fAud" title="Classroom"></iframe>
   <iframe id="fOpen" title="The Open Door" allow="camera; microphone; display-capture; fullscreen; autoplay"></iframe>
@@ -195,7 +195,7 @@ $('tShot').onclick=async()=>{
   s=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false,preferCurrentTab:true});
   const v=document.createElement('video');v.muted=true;v.playsInline=true;v.srcObject=s;await v.play();await new Promise(r=>setTimeout(r,300));
   const w=v.videoWidth,h=v.videoHeight;if(!w||!h)throw new Error('noframe');
-  const k=Math.min(1,1280/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(w*k));c.height=Math.max(1,Math.round(h*k));
+  const k=Math.min(1,1280/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(w*k)),c.height=Math.max(1,Math.round(h*k));
   const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(v,0,0,c.width,c.height);
   s.getTracks().forEach(t=>t.stop());s=null;
   const blob=await new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('encode')),'image/jpeg',.82));
