@@ -9,7 +9,7 @@ import { actorDepth, directionFromGrid, isoToScreen, screenInputToGrid } from ".
 
 const L = layoutJson as unknown as AuditoriumLayout;
 import { VIRTUAL_INPUT } from "../input";
-import { ensureSheet } from "../runtimeChars";
+import { ensureSheet, ensureSheetQueued } from "../runtimeChars";
 import { ROSTER, TEACHER_BY_SUBJECT, byId, type NpcDef } from "../../hall3d/roster";
 import { Social } from "../../hall3d/social";
 import { toLook } from "../../hall3d/avatar";
@@ -46,22 +46,23 @@ export class AuditoriumScene extends Phaser.Scene {
       const im = SEATVIEW_IMAGES.find((i) => i.key === k); if (im && !this.textures.exists(k)) this.load.image(k, im.url);
     }
   }
-  /** teachers are drawn by the same rig as everyone else (looks come from the roster) */
-  private bakeTeacher(subject: Subject) {
+  /** teachers are drawn by the same rig as everyone else (looks come from the roster); baked on the queue so the page never freezes */
+  private async bakeTeacher(subject: Subject) {
     const t = TEACHER_FOR[subject], look = TEACHER_BY_SUBJECT[subject].look;
-    for (const a of ["idle", "walk", "talk", "point", "boardwrite"]) ensureSheet(this, t, look, a);
-    for (const a of ["idle", "talk", "point", "boardwrite"]) ensureSheet(this, t, look, "svt_" + a);
+    await ensureSheetQueued(this, t, look, "talk", true); await ensureSheetQueued(this, t, look, "idle", true); await ensureSheetQueued(this, t, look, "svt_talk", true);
+    for (const a of ["walk", "point", "boardwrite"]) void ensureSheetQueued(this, t, look, a);
+    for (const a of ["idle", "point", "boardwrite"]) void ensureSheetQueued(this, t, look, "svt_" + a);
   }
-  /** the player's avatar (customised in the creator) */
+  /** the player's avatar (customised in the creator): first bake happens in boot(); later re-bakes are sync so the swap is instant */
   bakePlayer(force = false) {
     const look = { ...toLook(Social.profile.avatar, 11), tag: false }, sig = JSON.stringify(look); if (!force && sig === this.playerSig) return false; const had = !!this.playerSig; this.playerSig = sig;
-    if (had) this.player?.sprite.stop();
-    for (const a of ["idle", "walk", "sit", "raisehand", "write"]) ensureSheet(this, "player_student", look, a, had);
-    if (had && this.player) { this.player.sprite.setTexture(`player_student_${this.player.state === "walk" ? "walk" : this.player.state === "sit" ? "sit" : "idle"}`); this.player.play(this.seated ? "sit" : "idle", this.seated ? "up_left" : this.player.facing); }
+    if (!had) return true;   // boot() bakes the first sheets asynchronously
+    if (!this.player) return false;
+    this.player.sprite.stop();
+    for (const a of ["idle", "walk", "sit", "raisehand", "write"]) ensureSheet(this, "player_student", look, a, true);
+    this.player.sprite.setTexture(`player_student_${this.player.state === "walk" ? "walk" : this.player.state === "sit" ? "sit" : "idle"}`); this.player.play(this.seated ? "sit" : "idle", this.seated ? "up_left" : this.player.facing);
     return true;
   }
-  /** unique classmate sprites for a roster member (only the seated poses; walking is baked when they leave) */
-  private bakeNpc(def: NpcDef, extra: string[] = []) { for (const a of ["sit", "write", "raisehand", ...extra]) ensureSheet(this, `npc${def.id}`, def.look, a); }
   private loadNow(): Promise<void> { return new Promise((res) => { if (!this.load.list.size) return res(); this.load.once("complete", () => { createAnims(this); res(); }); this.load.start(); }); }
   preload() {
     this.load.atlas(ATLAS.key, ATLAS.image, ATLAS.data);
@@ -69,18 +70,27 @@ export class AuditoriumScene extends Phaser.Scene {
   }
 
   create() {
-    createAnims(this); this.bakePlayer(); this.bakeTeacher("math");
+    createAnims(this); this.bakePlayer();
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.keys = this.input.keyboard!.addKeys("W,A,S,D,V,F,ONE,TWO,THREE,FOUR") as Record<string, Phaser.Input.Keyboard.Key>;
     this.buildRoom("math");
-    this.spawnAudience();
-    this.player = new Actor(this, "player", "player_student", L.playerSpawn.gx, L.playerSpawn.gy, 0);
-    this.player.play("idle", "down");
     this.setupPointerCamera();
     this.setView("iso", true);
     if (this.debug) this.drawDebug();
     this.time.addEvent({ delay: 900, loop: true, callback: () => this.tickAudience() });
     (window as any).__unify = this;
+    void this.boot();
+  }
+
+  /** characters bake one sheet per frame (see runtimeChars): player first, then classmates settle in one by one */
+  private async boot() {
+    const look = { ...toLook(Social.profile.avatar, 11), tag: false };
+    await ensureSheetQueued(this, "player_student", look, "idle", true);
+    this.player = new Actor(this, "player", "player_student", L.playerSpawn.gx, L.playerSpawn.gy, 0);
+    this.player.play("idle", "down");
+    if (this.view === "iso") this.setView("iso", true);   // camera could not follow before the player existed
+    for (const a of ["walk", "sit", "raisehand", "write"]) void ensureSheetQueued(this, "player_student", look, a, true);
+    void this.fillAudience();
   }
 
   // ------------------------------------------------------------------ room (iso world), rebuilt per subject
@@ -88,6 +98,9 @@ export class AuditoriumScene extends Phaser.Scene {
   buildRoom(subject: Subject) {
     this.subject = subject;
     this.roomObjs.forEach((o) => o.destroy()); this.roomObjs = []; this.screens.clear();
+    // apron: extend the oak floor past the diorama so the camera never shows bare paper (one repeating tileSprite, one draw call)
+    const bb = this.isoBounds();
+    this.roomObjs.push(this.add.tileSprite(bb.x + bb.w / 2, bb.y + bb.h / 2, bb.w + 1600, bb.h + 1400, ATLAS.key, "floor_oak_01").setDepth(-1001).setAlpha(0.45));
     for (const p of [...L.placements, ...L.decor[subject]]) {
       const img = this.add.image(p.x, p.y, ATLAS.key, this.variant(p.key)).setOrigin(p.ox, p.oy).setDepth(p.depth);
       if (p.key === "light_pool_warm") img.setAlpha(0.9);
@@ -100,8 +113,10 @@ export class AuditoriumScene extends Phaser.Scene {
   // ------------------------------------------------------------------ subject / teacher
   async setSubject(subject: Subject) {
     this.teacherRun++;
-    this.queueSubject(subject); await this.loadNow(); this.bakeTeacher(subject);
-    this.buildRoom(subject); this.buildSeatView(subject);
+    this.queueSubject(subject); await this.loadNow();
+    this.buildRoom(subject);
+    await this.bakeTeacher(subject);
+    await this.buildSeatView(subject);
     this.teacher?.sprite.destroy();
     const t = L.teacher;
     this.teacher = new Actor(this, "teacher", TEACHER_FOR[subject], t.gx, t.gy, t.elev, "talk");
@@ -128,7 +143,7 @@ export class AuditoriumScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------ seat view (first person illustration world)
-  private buildSeatView(subject: Subject) {
+  private async buildSeatView(subject: Subject) {
     this.svObjs.forEach((o) => o.destroy()); this.svObjs = []; this.svHands = [];
     const add = <T extends Phaser.GameObjects.GameObject>(o: T) => { this.svObjs.push(o); return o; };
     add(this.add.image(SVX, 0, `sv_backdrop__${subject}`).setOrigin(0, 0).setScale(0.5).setDepth(0));
@@ -136,7 +151,7 @@ export class AuditoriumScene extends Phaser.Scene {
     // students in front (backs of heads), some with raised hands
     const xs = [120, 330, 860, 1080], tier = PLAYER_TIER, count = Math.min(xs.length, 1 + tier), pool = this.frontDefs();
     for (let i = 0; i < count; i++) {
-      const def = pool[(i * 3 + 1) % pool.length], id = `npc${def.id}`, key = `sv_${id}_sit`; ensureSheet(this, id, def.look, "sv_sit"); ensureSheet(this, id, def.look, "sv_raisehand");
+      const def = pool[(i * 3 + 1) % pool.length], id = `npc${def.id}`, key = `sv_${id}_sit`; await ensureSheetQueued(this, id, def.look, "sv_sit", true); void ensureSheetQueued(this, id, def.look, "sv_raisehand");
       if (!this.textures.exists(key)) continue;
       const sp = add(this.add.sprite(SVX + xs[i], 742, key, 0).setOrigin(0.5, 216 / 256).setScale(1.1).setDepth(5 + i)) as Phaser.GameObjects.Sprite;
       sp.play(`${key}:up`); this.svHands.push(sp); (sp as any).__id = id;
@@ -173,7 +188,7 @@ export class AuditoriumScene extends Phaser.Scene {
   setView(v: ViewMode, instant = false) {
     const apply = () => {
       const cam = this.cameras.main; this.view = v; this.freeLook = false; this.focusTarget = "room"; cam.stopFollow();
-      if (v === "iso") { const b = this.isoBounds(); cam.setBounds(b.x, b.y, b.w, b.h); cam.setZoom(this.fitZoom()); const follow = this.scale.width < 700 || this.seated === false; if (follow) cam.startFollow(this.player.sprite, true, 0.09, 0.09); else cam.centerOn(b.x + b.w / 2, b.y + b.h / 2); }
+      if (v === "iso") { const b = this.isoBounds(); cam.setBounds(b.x, b.y, b.w, b.h); cam.setZoom(this.fitZoom()); const follow = this.scale.width < 700 || this.seated === false; if (follow && this.player) cam.startFollow(this.player.sprite, true, 0.09, 0.09); else cam.centerOn(b.x + b.w / 2, b.y + b.h / 2); }
       else { cam.setBounds(SVX - 200, -300, SV_W + 400, SV_H + 600); cam.setZoom(this.fitZoom()); cam.centerOn(SVX + SV_W / 2, SV_H / 2); }
       this.events.emit("camstate", this.camState());
     };
@@ -185,10 +200,10 @@ export class AuditoriumScene extends Phaser.Scene {
     const cam = this.cameras.main; this.focusTarget = target; this.freeLook = false; cam.stopFollow();
     let cx: number, cy: number, z: number;
     if (this.view === "seat") { const [x, y, m] = SV_FOCUS[target]; cx = target === "teacher" && this.svTeacher ? this.svTeacher.x : SVX + x; cy = y; z = this.fitZoom() * m; if (target === "room") { cx = SVX + SV_W / 2; cy = SV_H / 2; } }
-    else if (target === "teacher") { cx = this.teacher.sprite.x; cy = this.teacher.sprite.y - 40; z = 2.2; }
+    else if (target === "teacher") { if (!this.teacher) return; cx = this.teacher.sprite.x; cy = this.teacher.sprite.y - 40; z = 2.2; }
     else if (target === "board") { const c = this.centerOf("board_white_large_left"); cx = c.x; cy = c.y; z = 2.3; }
     else if (target === "screen") { const c = this.centerOf("screen_bezel_left"); cx = c.x; cy = c.y; z = 2.0; }
-    else { cam.startFollow(this.player.sprite, true, 0.09, 0.09); cam.zoomTo(this.fitZoom(), 450, "Sine.easeInOut"); this.events.emit("camstate", this.camState()); return; }
+    else { if (this.player) cam.startFollow(this.player.sprite, true, 0.09, 0.09); cam.zoomTo(this.fitZoom(), 450, "Sine.easeInOut"); this.events.emit("camstate", this.camState()); return; }
     cam.pan(cx, cy, 550, "Sine.easeInOut", true); cam.zoomTo(Math.min(z, 3.2), 550, "Sine.easeInOut");
     this.events.emit("camstate", this.camState());
   }
@@ -196,7 +211,7 @@ export class AuditoriumScene extends Phaser.Scene {
   toggleFreeLook(on?: boolean) {
     this.freeLook = on ?? !this.freeLook; const cam = this.cameras.main;
     if (this.freeLook) cam.stopFollow();
-    else if (this.view === "iso") { cam.startFollow(this.player.sprite, true, 0.09, 0.09); this.focusTarget = "room"; }
+    else if (this.view === "iso" && this.player) { cam.startFollow(this.player.sprite, true, 0.09, 0.09); this.focusTarget = "room"; }
     this.events.emit("camstate", this.camState());
   }
   camState() { return { view: this.view, freeLook: this.freeLook, focus: this.focusTarget, seated: this.seated, subject: this.subject }; }
@@ -218,20 +233,26 @@ export class AuditoriumScene extends Phaser.Scene {
   /** the roster members to seat: those attending this class first, then everyone else, so each seat is a different person */
   private pool(): NpcDef[] { const att = this.attendeeIds.map((i) => ROSTER[i]).filter(Boolean), rest = ROSTER.filter((d) => !this.attendeeIds.includes(d.id)); return [...att, ...rest]; }
   private frontDefs(): NpcDef[] { const seated = [...this.npcs.values()].filter((a) => a.seatId).map((a) => this.defOf.get(a.id)!).filter(Boolean); return seated.length ? seated : ROSTER.slice(0, 8); }
-  private spawnAudience() {
+  /** the audience fills in progressively: each classmate appears as soon as their sheet is baked (one sheet per frame) */
+  private async fillAudience() {
     const pool = this.pool();
-    L.seats.forEach((s, i) => {
-      const def = pool[i % pool.length]; this.bakeNpc(def);
+    for (let i = 0; i < L.seats.length; i++) {
+      const s = L.seats[i], def = pool[i % pool.length];
+      await ensureSheetQueued(this, `npc${def.id}`, def.look, "sit");
+      if (this.npcs.has(`npc_${s.id}`)) continue;   // a lesson reseated this spot meanwhile
       const a = new Actor(this, `npc_${s.id}`, `npc${def.id}`, s.sitX, s.sitY, s.elev, "sit");
       a.depthOverride = s.depth; a.seatId = s.id; a.sync(); a.play("sit", "up_left"); this.seating.assign(s.id, a.id); this.npcs.set(a.id, a); this.defOf.set(a.id, def);
       a.sprite.setInteractive({ useHandCursor: true }).on("pointerdown", () => { if (!this.freeLook && !this.evicting.has(a.id)) this.events.emit("npc-tap", this.defOf.get(a.id)); });
-    });
+    }
+    const seen = new Set<number>();
+    for (const def of pool.slice(0, L.seats.length)) { if (seen.has(def.id)) continue; seen.add(def.id); void ensureSheetQueued(this, `npc${def.id}`, def.look, "write"); void ensureSheetQueued(this, `npc${def.id}`, def.look, "raisehand"); }
   }
   /** re-deal the seats for a new class (attendees come from the hallway) */
-  private reseat(ids: number[]) {
+  private async reseat(ids: number[]) {
     this.attendeeIds = ids; const pool = this.pool(); let i = 0;
-    for (const s of L.seats) { const a = this.npcs.get(`npc_${s.id}`); if (!a || this.evicting.has(a.id) || a.seatId !== s.id) { i++; continue; } const def = pool[i++ % pool.length]; this.bakeNpc(def); a.character = `npc${def.id}`; a.sprite.stop(); a.sprite.setTexture(`npc${def.id}_sit`); this.defOf.set(a.id, def); a.play("sit", "up_left"); }
-  }
+    for (const s of L.seats) { const a = this.npcs.get(`npc_${s.id}`); if (!a || this.evicting.has(a.id) || a.seatId !== s.id) { i++; continue; } const def = pool[i++ % pool.length];
+      await ensureSheetQueued(this, `npc${def.id}`, def.look, "sit", true); void ensureSheetQueued(this, `npc${def.id}`, def.look, "write"); void ensureSheetQueued(this, `npc${def.id}`, def.look, "raisehand");
+      a.character = `npc${def.id}`; a.sprite.stop(); a.sprite.setTexture(`npc${def.id}_sit`); this.defOf.set(a.id, def); a.play("sit", "up_left"); } }
   /** NPCs sitting right now (classroom Q&A talks to these) */
   seatedDefs(): NpcDef[] { return [...this.npcs.values()].filter((a) => a.seatId && !this.evicting.has(a.id)).map((a) => this.defOf.get(a.id)!).filter(Boolean); }
   setNpcHand(id: number, up: boolean) {
@@ -254,15 +275,16 @@ export class AuditoriumScene extends Phaser.Scene {
     return [{ gx: 5.0, gy: from.gy }, { gx: 5.0, gy: ay }, { gx: ap.gx, gy: ay }, { gx: ap.gx, gy: ap.gy }, { gx: seat.sitX, gy: seat.sitY }];
   }
   private async evict(npcId: string) {
-    const n = this.npcs.get(npcId)!; this.evicting.add(npcId); { const d = this.defOf.get(npcId); if (d) ensureSheet(this, `npc${d.id}`, d.look, "walk"); } const seat = this.seating.free(npcId)!; n.seatId = undefined; n.depthOverride = undefined;
+    const n = this.npcs.get(npcId)!; this.evicting.add(npcId); { const d = this.defOf.get(npcId); if (d) await ensureSheetQueued(this, `npc${d.id}`, d.look, "walk", true); } const seat = this.seating.free(npcId)!; n.seatId = undefined; n.depthOverride = undefined;
     await n.walkPath([{ gx: seat.approach.gx, gy: seat.approach.gy }, { gx: seat.approach.gx, gy: 7.0 }, { gx: 5.0, gy: 7.0 }, { gx: L.door.gx, gy: L.door.gy }]);
     this.npcs.delete(npcId); n.sprite.destroy();
   }
   /** Lesson start: swap the room to the subject, then the system walks the student from the door to their seat. */
   async startLesson(subject: Subject, attendees: number[] = []) {
     if (this.busy) return; this.busy = true;
+    while (!this.player) await this.wait(150);   // first sheets are still baking; the lesson starts as soon as the player exists
     if (this.seated) this.standUp();
-    this.bakePlayer(); this.reseat(attendees.length ? attendees : this.attendeeIds);
+    this.bakePlayer(); await this.reseat(attendees.length ? attendees : this.attendeeIds);
     await this.setSubject(subject); this.setScreen(SCREEN_FOR[subject]);
     this.setView("iso", true);
     this.player.path = []; this.player.gx = L.door.gx; this.player.gy = L.door.gy; this.player.elev = 0; this.player.shownElev = 0; this.player.depthOverride = undefined; this.player.sync();
@@ -282,11 +304,15 @@ export class AuditoriumScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------ update
-  update(_t: number, dtMs: number) {
-    const dt = dtMs / 1000, K = this.keys, C = this.cursors;
+  private lastTick = 0;
+  update(_t: number, _dtMs: number) {
+    // wall-clock dt (capped at 4 fps): while the bake queue drains, Phaser's smoothed delta collapses and everyone walks in slow motion
+    const now = performance.now(), dt = Math.min(0.25, this.lastTick ? (now - this.lastTick) / 1000 : 0.016); this.lastTick = now;
+    const K = this.keys, C = this.cursors;
     for (const n of this.npcs.values()) n.step(dt, (x, y) => this.collision.elevAt(x, y));
     this.teacher?.step(dt, () => L.stage.elev); this.updatePinch();
-    if (this.focusTarget === "teacher" && !this.freeLook) {   // keep the teacher centered while they move
+    if (!this.player) return;   // player sheet still baking on the queue
+    if (this.focusTarget === "teacher" && !this.freeLook && this.teacher) {   // keep the teacher centered while they move
       const t = this.view === "seat" && this.svTeacher ? { x: this.svTeacher.x, y: this.svTeacher.y - 110 } : { x: this.teacher.sprite.x, y: this.teacher.sprite.y - 40 };
       const c = this.cameras.main, k = Math.min(1, dt * 4); c.scrollX += (t.x - c.midPoint.x) * k; c.scrollY += (t.y - c.midPoint.y) * k;
     }
