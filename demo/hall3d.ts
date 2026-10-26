@@ -10,6 +10,8 @@ import { runPlacement } from "../src/game/placement";
 import { openPic } from "../src/game/wallart";
 import { openNewsPanel } from "../src/game/newstv";
 import { openLibrary } from "../src/hall3d/libraryui";
+import { openLab } from "../src/hall3d/labui";
+import { openArt } from "../src/hall3d/artui";
 import { CURRICULUM } from "../src/class3d/curriculum";
 import { Lockers, lockerNear, slot as lockerSlot } from "../src/game/lockers";
 import { openLocker } from "../src/hall3d/lockerui";
@@ -96,6 +98,8 @@ $("bOpenLocker").onclick = () => { const p = hall.player.pos, s = Lockers.neares
 hall.onPic = (pid, _title, subject) => { lock(true); const ls = (CURRICULUM as any)[subject] ?? [], cur = ls[Progress.index(subject as any, ls.length)]; openPic(pid, { lesson: cur?.title, onClose: () => lock(false) }); };
 hall.onTV = () => { lock(true); openNewsPanel(() => lock(false), () => { if (parent !== window) parent.postMessage({ type: "unify:open", view: "news" }, "*"); else location.assign("news.html"); }); };
 hall.onBooks = () => { lock(true); openLibrary($("libHost"), () => lock(false)); };
+hall.onLab = () => { lock(true); openLab(() => lock(false)); };
+hall.onArt = () => { lock(true); openArt(() => lock(false)); };
 hall.onNewsroom = () => { if (parent !== window) parent.postMessage({ type: "unify:open", view: "news" }, "*"); else location.assign("news.html"); };
 $("bBooks").onclick = () => { lock(true); openLibrary($("libHost"), () => lock(false)); };
 

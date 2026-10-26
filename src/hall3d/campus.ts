@@ -32,16 +32,21 @@ export type Room = Subject | "news" | "open";
 /** second floor: the same finished building, with a library, side halls, the auditorium and the newsroom.
  *  The plaza under the middle stays open. */
 export const LIBRARY: Rect = { x: 8, y: 6, w: 92, h: 28 };
-export const WEST_HALL: Rect = { x: 8, y: 34, w: 18, h: 18 };
-export const EAST_HALL: Rect = { x: 82, y: 34, w: 18, h: 18 };
+/** the west side hall is now a corridor with the computer lab opening off it (and off the library) */
+export const COMP_LAB: Rect = { x: 8, y: 34, w: 11, h: 18 };
+export const WEST_HALL: Rect = { x: 19, y: 34, w: 7, h: 18 };
+/** the east side hall is a corridor with the art studio opening off it (and off the library) */
+export const EAST_HALL: Rect = { x: 82, y: 34, w: 7, h: 18 };
+export const ART_STUDIO: Rect = { x: 89, y: 34, w: 11, h: 18 };
 export const AUDITORIUM: Rect = { x: 8, y: 52, w: 52, h: 22 };
 export const NEWSROOM: Rect = { x: 60, y: 52, w: 40, h: 22 };
-export const UP_ROOMS: Rect[] = [LIBRARY, WEST_HALL, EAST_HALL, AUDITORIUM, NEWSROOM];
+export const UP_ROOMS: Rect[] = [LIBRARY, COMP_LAB, WEST_HALL, EAST_HALL, ART_STUDIO, AUDITORIUM, NEWSROOM];
 export const LIB_SHELL: Rect = { x: 8, y: 6, w: 92, h: 68 };
 export const UP_DOORS: Rect[] = [
   { x: 11, y: 33.15, w: 12, h: 1.8 }, { x: 85, y: 33.15, w: 12, h: 1.8 },
   { x: 11, y: 51.15, w: 12, h: 1.8 }, { x: 85, y: 51.15, w: 12, h: 1.8 },
   { x: 58.6, y: 60, w: 2.8, h: 8 },
+  { x: 18.2, y: 41.5, w: 1.6, h: 2 }, { x: 88.2, y: 41.5, w: 1.6, h: 2 },   // the lab and studio doors off the side corridors
 ];
 export const LIB_SHELVES: Rect[] = [16, 24, 32, 40, 68, 76, 84, 92].flatMap((x) => [{ x, y: 9, w: 1.2, h: 8 }, { x, y: 20, w: 1.2, h: 5 }]);
 export const LIB_READ = { x: 54, y: 16 };
@@ -59,6 +64,15 @@ export const UP_FURN: Rect[] = [
   { x: 39.8, y: 8, w: 0.55, h: 9 }, { x: 67.7, y: 8, w: 0.55, h: 9 },
   { x: 11.6, y: 41.6, w: 0.8, h: 0.8 }, { x: 95.6, y: 41.6, w: 0.8, h: 0.8 },
   { x: 13.6, y: 63.6, w: 0.8, h: 0.8 }, { x: 93.6, y: 63.6, w: 0.8, h: 0.8 },
+  // the lab and studio walls facing the side corridors, with a doorway in each
+  { x: 18.75, y: 34, w: 0.5, h: 7.5 }, { x: 18.75, y: 43.5, w: 0.5, h: 8.5 },
+  { x: 88.75, y: 34, w: 0.5, h: 7.5 }, { x: 88.75, y: 43.5, w: 0.5, h: 8.5 },
+  // computer lab: desk rows along the north and south walls, a standing desk on the west wall
+  { x: 9.5, y: 34.6, w: 8, h: 1.6 }, { x: 9.5, y: 49.8, w: 8, h: 1.6 }, { x: 8.5, y: 38, w: 1.6, h: 8 },
+  // art studio: easels along the north wall, the paint table along the south wall, a supply shelf on the east wall
+  { x: 91, y: 34.6, w: 7.5, h: 1.4 }, { x: 91, y: 49.9, w: 7.5, h: 1.5 }, { x: 98.6, y: 38, w: 1, h: 8 },
+  // library story circle: a rug with cushions around an open-book display, on the open floor south-east of the reading room
+  { x: 77.8, y: 26.8, w: 5.6, h: 5.6 },
 ];
 export const AUD_DOOR: Rect = { x: 20, y: 64.5, w: 12, h: 4.2 };
 export const NEWS_DOOR: Rect = { x: 72, y: 64.5, w: 12, h: 4.2 };

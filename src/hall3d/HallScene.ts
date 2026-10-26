@@ -4,7 +4,7 @@ import { Beam } from "../shared/beam";
 import { dprCap, shadowSize, vignette, rimLight, smallScreen } from "../shared/polish";
 import { PERIODS, DAY, DAY_START, periodAt, astar, rnd, shuffle } from "./logic";
 import { bakeSheet, DIRS, COLS, FW, FH, SCALE, FEET, SKINS, SHIRTS, HAIRS, AGE_SCALE, type Age, type Look } from "./characters";
-import { SUBJECTS, W, H, WALL_H, LOCK_D, FLOOR_Y, BLOCKS, DOORS, NEWS, OPEN, LOCKERS, PROPS, ENTRANCE, OUTSIDE, NAV, NAV_UP, LIB_SHELL, LIB_SHELVES, LIBRARY, WEST_HALL, EAST_HALL, AUDITORIUM, NEWSROOM, UP_DOORS, STAIR_BLOCK, STAIR_UP, STAIR_DOWN, STAIR_GROUND, STAIR_TOP, LIB_READ, LIB_DESK, AUD_DOOR, NEWS_DOOR, COLUMNS, GREENS, underUpper, hit, solidAt, type Subject, type Room, type Rect, type Face } from "./campus";
+import { SUBJECTS, W, H, WALL_H, LOCK_D, FLOOR_Y, BLOCKS, DOORS, NEWS, OPEN, LOCKERS, PROPS, ENTRANCE, OUTSIDE, NAV, NAV_UP, COMP_LAB, ART_STUDIO, AUDITORIUM, NEWSROOM, STAIR_BLOCK, STAIR_UP, STAIR_DOWN, STAIR_GROUND, STAIR_TOP, LIB_READ, LIB_DESK, AUD_DOOR, NEWS_DOOR, COLUMNS, GREENS, underUpper, hit, solidAt, type Subject, type Room, type Rect, type Face } from "./campus";
 import * as T from "./textures";
 import { ROSTER, STAFF, HALL_COUNT, type NpcDef } from "./roster";
 import { drawBoard } from "../game/timesui";
@@ -22,6 +22,8 @@ import { PixarHall, PixarCrowd } from "./pixarHall";
 import { getStyle } from "../dorm/style";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { ACTIONS, POSE_KEYS, POSE_IX, GAITS, GAIT_BY_PERSONALITY, FIDGETS, bakeActions, frameAt } from "./actions";
+import { buildUpstairsFloor } from "./upstairsFloor";
+import { buildOutsideWorld, buildLifeWorld, buildRoadWorld } from "./outsideWorld";
 
 import { INTERIOR_SCALE as IS, CHAR_K, PROP_H, scaleScene } from "../shared/scale";
 import { makeBody } from "../shared/body3d";
@@ -43,6 +45,7 @@ export const GOTO = [
   { key: "science", label: "Science", color: SUBJ_COL.science }, { key: "history", label: "History", color: SUBJ_COL.history }, { key: "careers", label: "CarryingCareers", color: SUBJ_COL.careers }, { key: "life", label: "Life Lessons", color: SUBJ_COL.life },
   { key: "news", label: "Auditorium (upstairs)", color: "#8E7CC3" }, { key: "newsroom", label: "Newsroom (upstairs)", color: "#E07A66" }, { key: "open", label: "The Open Door (parent classes)", color: "#E8A33D" },
   { key: "library", label: "Library (upstairs)", color: "#6E8B74" },
+  { key: "lab", label: "Computer Lab (upstairs)", color: "#4F91C7" }, { key: "art", label: "Art Studio (upstairs)", color: "#C4553A" },
   { key: "board", label: "Class-times board", color: "#C9A36B" }, { key: "plaza", label: "Plaza fountain", color: "#EAB94E" }, { key: "entrance", label: "Main entrance", color: "#F28F7E" },
 ];
 
@@ -56,7 +59,7 @@ export class HallScene {
   students: Stu[] = []; player!: Person; monitor!: Person; duty: Person[] = []; inDoor: Room | null = null; onToast: (m: string) => void = () => {};
   keys: Record<string, boolean> = {}; input = { x: 0, y: 0 }; rotate = 0; inputLocked = false;
   /** per-frame hooks (dt = real seconds, sim = simulated seconds) and tap handling for the social layer */
-  onTick: ((dt: number, sim: number) => void)[] = []; onTap: (p: Person | null) => void = () => {}; onPic: (pid: string, title: string, subject: string) => void = () => {}; onTV: () => void = () => {}; onBooks: () => void = () => {}; onNewsroom: () => void = () => {}; hallPics: THREE.Mesh[] = []; tvScreen: THREE.Mesh | null = null; private bookLatch = false; private newsLatch = false; private sentUp = false;
+  onTick: ((dt: number, sim: number) => void)[] = []; onTap: (p: Person | null) => void = () => {}; onPic: (pid: string, title: string, subject: string) => void = () => {}; onTV: () => void = () => {}; onBooks: () => void = () => {}; onNewsroom: () => void = () => {}; onLab: () => void = () => {}; onArt: () => void = () => {}; hallPics: THREE.Mesh[] = []; tvScreen: THREE.Mesh | null = null; private bookLatch = false; private newsLatch = false; private labLatch = false; private artLatch = false; private sentUp = false;
   /** Chat Chow seats (stools at the plaza tables): tap one to sit; the player sits there when idle */
   seats: { pos: THREE.Vector3; ctr: THREE.Vector3; mesh: THREE.Mesh }[] = []; sitting: number | null = null; private pendingSeat: number | null = null;
   /** scripted walking (arrival from the bus, walking in) that ignores walls and input */
@@ -353,110 +356,7 @@ export class HallScene {
     med2.rotation.x = -Math.PI / 2; med2.position.set(0, 0.025, 74 - H / 2); this.scene.add(med2);
   }
   /** the second floor: library, side halls, auditorium and newsroom, finished like the ground floor */
-  private buildLibrary() {
-    const y0 = FLOOR_Y, wh = WALL_H;
-    const gx = (x: number) => x - W / 2, gz = (y: number) => y - H / 2;
-    const wain = this.plain("#C46B4A"), crown = this.plain("#E8B15A"), wood = this.plain("#8d6844"), ink = this.plain("#5c4632"), cream = this.plain("#f7f1e6"), plaster = this.plain("#efe6d6");
-    const slab = (r: Rect, floorCol: THREE.Material) => {
-      this.box(r.w, 0.46, r.h, plaster, gx(r.x + r.w / 2), y0 - 0.28, gz(r.y + r.h / 2), { outline: false, shadow: false });
-      this.box(r.w, 0.18, r.h, floorCol, gx(r.x + r.w / 2), y0 + 0.08, gz(r.y + r.h / 2), { outline: false, shadow: false });
-      this.box(Math.max(0.4, r.w - 1.6), 0.04, Math.max(0.4, r.h - 1.6), cream, gx(r.x + r.w / 2), y0 + 0.18, gz(r.y + r.h / 2), { outline: false, shadow: false });
-      this.box(Math.max(0.4, r.w - 1.4), 0.08, Math.max(0.4, r.h - 1.4), cream, gx(r.x + r.w / 2), y0 + wh - 0.06, gz(r.y + r.h / 2), { outline: false, shadow: false });
-    };
-    const oak = this.plain("#C4894A"), hallTile = this.std(this.rep("upfloor", () => T.floorTex(), 4, 3)), stone = this.plain("#F4E7CC");
-    slab(LIBRARY, oak);
-    for (const r of [WEST_HALL, EAST_HALL, NEWSROOM]) slab(r, hallTile);
-    slab(AUDITORIUM, stone);
-    const cozy = this.plain("#F6C7A8"), halfC = this.plain("#F3D2B0");
-    const wall = (x: number, y: number, w: number, d: number, half = false) => {
-      if (w < 0.35 || d < 0.25) return;
-      const cx = gx(x + w / 2), cz = gz(y + d / 2), h = half ? 1.28 : wh * 0.92;
-      this.box(w, h, d, half ? halfC : cozy, cx, y0 + h / 2, cz, { outline: false, occlude: !half, shadow: true });
-      this.box(w + 0.04, 0.1, d + 0.04, half ? wood : crown, cx, y0 + h - 0.02, cz, { outline: false, shadow: false });
-      if (!half) this.box(w + 0.02, 0.36, d + 0.02, wain, cx, y0 + 0.22, cz, { outline: false, shadow: false });
-    };
-    wall(8, 6, 92, 0.5); wall(8, 6, 0.5, 68); wall(99.5, 6, 0.5, 68); wall(8, 73.5, 92, 0.5);
-    wall(8, 33.5, 3, 0.42, true); wall(23, 33.5, 62, 0.42, true); wall(97, 33.5, 2.5, 0.42, true);
-    wall(25.5, 34, 0.42, 18, true); wall(8, 34, 3, 0.4, true); wall(23, 34, 2.5, 0.4, true); wall(8, 51.6, 3, 0.4, true); wall(23, 51.6, 2.5, 0.4, true);
-    wall(82, 34, 0.42, 18, true); wall(82, 34, 3, 0.4, true); wall(97, 34, 2.5, 0.4, true); wall(82, 51.6, 3, 0.4, true); wall(97, 51.6, 2.5, 0.4, true);
-    wall(8, 52, 12, 0.42, true); wall(32, 52, 28, 0.42, true);
-    wall(59.6, 52, 0.42, 8, true); wall(59.6, 68, 0.42, 6, true);
-    wall(60, 52, 12, 0.42, true); wall(84, 52, 16, 0.42, true);
-    wall(40, 8, 0.42, 9, true); wall(68, 8, 0.42, 9, true);
-    const winAt = (x: number, y: number, rot: number) => this.win(gx(x), y0 + 2.55, gz(y), rot);
-    for (const x of [28, 54, 80]) winAt(x, 6.25, 0);
-    winAt(28, 73.75, Math.PI); winAt(80, 73.75, Math.PI);
-    winAt(8.25, 22, Math.PI / 2); winAt(8.25, 62, Math.PI / 2); winAt(99.75, 22, -Math.PI / 2); winAt(99.75, 62, -Math.PI / 2);
-    this.portrait(gx(40), y0 + 2.3, gz(6.35), 0, 0); this.portrait(gx(68), y0 + 2.3, gz(6.35), 0, 2);
-    this.chandelier(gx(54), y0 + 3.85, gz(18)); this.chandelier(gx(32), y0 + 3.95, gz(62));
-    for (const [x, y] of [[12, 42], [96, 42], [14, 64], [94, 64]] as const) this.potLight(gx(x), gz(y), y0);
-    const sign = (text: string, col: string, x: number, y: number, rot: number) => this.card(this.tex("sg-" + text, () => T.signTex(text, col)), 2.4, 0.55, gx(x), y0 + 3.15, gz(y), rot, true);
-    sign("LIBRARY", "#6E8B74", 54, 7.2, 0); sign("TO THE AUDITORIUM", "#6B5AA8", 17, 32.4, Math.PI); sign("TO THE NEWSROOM", "#E07A66", 91, 32.4, Math.PI);
-    sign("AUDITORIUM", "#6B5AA8", 32, 71.6, Math.PI); sign("NEWSROOM", "#E07A66", 80, 71.6, Math.PI);
-    const spines = this.tex("spines", () => {
-      const cv = document.createElement("canvas"); cv.width = 256; cv.height = 128; const c = cv.getContext("2d")!;
-      c.fillStyle = "#8A6239"; c.fillRect(0, 0, 256, 128);
-      const cols = ["#6E8B74", "#4F91C7", "#C46B4A", "#E0B15A", "#F4E2C4", "#8E5A3C", "#D4786A", "#7C6BB5"];
-      const titles = ["COUNT", "WEATHER", "CELLS", "ALGEBRA", "STORIES", "FACTS", "SPEECH", "FRACTIONS"];
-      let x = 4, i = 0; while (x < 248) { const w = 14 + (i % 3) * 6; c.fillStyle = cols[i % cols.length]; c.fillRect(x, 8, w - 3, 112); c.fillStyle = "#fffaf2"; c.font = "700 11px Georgia, serif"; c.save(); c.translate(x + 4, 108); c.rotate(-Math.PI / 2); c.fillText(titles[i % titles.length], 0, 0); c.restore(); x += w; i++; }
-      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
-    });
-    const front = new THREE.MeshStandardMaterial({ map: spines, roughness: 0.8 });
-    for (const r of LIB_SHELVES) {
-      this.box(r.w, 3.15, r.h, [front, front, wood, ink, ink, ink], gx(r.x + r.w / 2), y0 + 1.58, gz(r.y + r.h / 2), { outline: false, shadow: true });
-      this.box(r.w + 0.08, 0.08, r.h + 0.08, crown, gx(r.x + r.w / 2), y0 + 3.2, gz(r.y + r.h / 2), { outline: false, shadow: false });
-    }
-    this.flat(this.rep("librug", () => T.rugTex(), 1, 4), 3.2, 16, gx(54), gz(20), y0 + 0.08);
-    this.box(6.4, 0.95, 1.3, wood, gx(54), y0 + 0.5, gz(13.4), { outline: false });
-    this.box(6.6, 0.12, 1.5, crown, gx(54), y0 + 1.02, gz(13.4), { outline: false, shadow: false });
-    this.card(this.tex("deskplate", () => T.signTex("CHECK OUT A BOOK", "#2C6B62")), 3.2, 0.46, gx(54), y0 + 1.35, gz(12.7), 0, true);
-    this.box(3.4, 0.42, 0.7, wood, gx(54), y0 + 0.28, gz(7.3), { outline: false });
-    const globe = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), this.plain("#3E8FD4")); globe.position.set(gx(50.2), y0 + 1.35, gz(13.4)); this.scene.add(globe);
-    this.box(0.9, 0.7, 0.55, ink, gx(58), y0 + 0.4, gz(12.2), { outline: false });
-    for (const [x, y] of [[42, 18], [66, 18], [48, 26], [60, 26]] as const) {
-      this.box(2.2, 0.08, 1.05, wood, gx(x), y0 + 0.74, gz(y), { outline: false });
-      for (const s of [-1, 1]) this.box(0.08, 0.7, 0.08, ink, gx(x + s), y0 + 0.35, gz(y), { outline: false, shadow: false });
-      this.box(0.42, 0.42, 0.42, this.plain("#C45A4A"), gx(x - 0.7), y0 + 0.42, gz(y + 0.85), { outline: false, shadow: false });
-      this.lamp(gx(x + 0.7), gz(y - 0.15), "#F0B429", y0);
-    }
-    for (const [x, y] of [[14, 30], [94, 30], [14, 58], [94, 58], [20, 70], [80, 70]] as const) this.plant(gx(x), gz(y), y0);
-    for (const [x, y] of [[12, 40], [96, 40], [30, 70], [86, 70]] as const) this.lamp(gx(x), gz(y), "#F8D977", y0);
-    this.bench(gx(18), gz(62), Math.PI / 2, y0); this.bench(gx(40), gz(62), Math.PI / 2, y0);
-    const banner = (text: string, col: string, x: number, z: number) => this.card(this.tex("ban-" + text, () => T.signTex(text, col)), 1.15, 2.2, gx(x), y0 + 2.7, gz(z), 0, true);
-    banner("COURAGE", "#7A2E3A", 12, 58); banner("WONDER", "#1F4E89", 48, 58); banner("TRUTH", "#2F6B45", 12, 68); banner("KINDNESS", "#C4553A", 48, 68);
-    for (const z of [60, 66]) { this.box(18, 0.16, 1.5, wood, gx(30), y0 + 0.78, gz(z), { outline: false }); for (const side of [-1, 1]) this.box(18, 0.16, 0.45, this.plain("#7A2E3A"), gx(30), y0 + 0.42, gz(z + side * 1.15), { outline: false, shadow: false }); }
-    for (let i = 0; i < 8; i++) { const orb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), new THREE.MeshStandardMaterial({ color: "#FFE7A0", emissive: "#FFB703", emissiveIntensity: 0.8 })); orb.position.set(gx(16 + (i % 4) * 9), y0 + 3.3 + (i % 2) * 0.25, gz(58 + Math.floor(i / 4) * 8)); this.scene.add(orb); }
-    this.box(16, 0.45, 5, wood, gx(32), y0 + 0.28, gz(70), { outline: false });
-    for (const x of [14, 46]) { this.box(0.55, 4.05, 0.55, this.plain("#F7F1E6"), gx(x), y0 + 2.05, gz(60), { outline: false, shadow: false }); this.box(0.9, 0.18, 0.9, this.plain("#E8C56B"), gx(x), y0 + 4.15, gz(60), { outline: false, shadow: false }); }
-    this.card(this.tex("sg-courage", () => T.signTex("COURAGE", "#C0392B")), 0.7, 1.6, gx(14), y0 + 2.6, gz(64), 0, true);
-    this.card(this.tex("sg-wonder", () => T.signTex("WONDER", "#1F6FB2")), 0.7, 1.6, gx(46), y0 + 2.6, gz(64), 0, true);
-    this.card(this.tex("stagesign", () => T.signTex("WALK UP TO OPEN THE SHOW", "#6B5AA8")), 3.4, 0.5, gx(32), y0 + 1.3, gz(67.6), Math.PI, true);
-    this.box(2.2, 0.9, 1.0, ink, gx(80), y0 + 0.45, gz(68), { outline: false });
-    this.card(this.tex("newsset", () => T.bannerTex("THE NEWSROOM")), 3.2, 1.6, gx(80), y0 + 2.2, gz(72.6), Math.PI, true);
-    const anchor = (x: number, shirt: string) => {
-      const person = new THREE.Group();
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), this.plain("#F2C7A0")); head.position.y = 1.55; person.add(head);
-      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 8), this.plain("#4A3728")); hair.position.y = 1.68; hair.scale.y = 0.6; person.add(hair);
-      const body = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.7, 0.2), this.plain(shirt)); body.position.y = 1.05; person.add(body);
-      person.position.set(gx(x), y0, gz(66)); this.scene.add(person);
-    };
-    anchor(76, "#E07A66"); anchor(84, "#4F91C7");
-    this.box(1.2, 0.7, 0.15, this.plain("#2b2b34"), gx(80), y0 + 1.35, gz(64.2), { outline: false });
-    const n = 8, z0 = gz(STAIR_BLOCK.y + STAIR_BLOCK.h), z1 = gz(STAIR_BLOCK.y), mid = STAIR_BLOCK.x + STAIR_BLOCK.w / 2, tread = Math.abs(z1 - z0) / n;
-    const riser = this.plain("#C56A32"), nose = this.plain("#F6E2B8"), run = Math.abs(z1 - z0), rise = y0 - 0.18, stepH = rise / n, ang = Math.atan2(rise, run), dir = z0 > z1 ? 1 : -1;
-    for (let i = 0; i < n; i++) {
-      const t = (i + 1) / n, z = z0 + (z1 - z0) * ((i + 0.5) / n), top = 0.18 + t * rise;
-      this.box(6.3, stepH, tread * 1.02, riser, gx(mid), top - stepH / 2, z, { outline: false });
-      this.box(6.55, 0.06, tread * 0.28, nose, gx(mid), top + 0.02, z + dir * tread * 0.38, { outline: false, shadow: false });
-    }
-    this.box(6.8, 0.18, 1.3, nose, gx(mid), y0 + 0.04, z1, { outline: false, shadow: false });
-    for (const side of [-1, 1]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, run + 0.4), this.plain("#F7F1E6"));
-      rail.position.set(gx(mid + side * 3.35), 0.95 + rise / 2, (z0 + z1) / 2); rail.rotation.x = dir * ang; rail.castShadow = true; this.scene.add(rail);
-      for (let i = 0; i < 5; i++) { const t = i / 4, z = z0 + (z1 - z0) * t, y = 0.18 + t * rise; this.box(0.08, 0.95, 0.08, ink, gx(mid + side * 3.35), y + 0.42, z, { outline: false, shadow: false }); }
-    }
-    void UP_DOORS;
-  }
+  private buildLibrary() { buildUpstairsFloor(this); }
   private fx!: { tick(t: number, dt: number): void };
   private buildDetails() {
     const doors = DOORS.map((d) => ({ x: d.cx - W / 2, z: d.cy - H / 2, rot: d.face === "S" ? 0 : Math.PI, col: SUBJ_COL[d.subject] }));
@@ -618,73 +518,7 @@ export class HallScene {
   tableNear(x: number, z: number): number { let b = 0, bd = 1e9; this.tables.forEach((t, i) => { const d = Math.hypot(t.x - x, t.z - z); if (d < bd) { bd = d; b = i; } }); return b; }
 
   /* ------------------------------------------------------------ outside the walls: lawn, paths, trees, houses, hills (so the paper is never empty) */
-  private buildOutside() {
-    const S = this.scene;
-    const gt = this.rep("grass", () => T.groundTex(), 60, 60), ground = new THREE.Mesh(new THREE.PlaneGeometry(480, 480), this.std(gt)); ground.rotation.x = -Math.PI / 2; ground.position.y = -0.04; ground.receiveShadow = true; S.add(ground);
-    const bladeN = 900, blades = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.05, 0.46), new THREE.MeshStandardMaterial({ color: "#3E9A45", roughness: 0.8, side: THREE.DoubleSide }), bladeN);
-    const bm = new THREE.Matrix4(), bq = new THREE.Quaternion(), be = new THREE.Euler(), bc = new THREE.Color();
-    const shades = ["#2F7A3A", "#4E9A48", "#8FCB62", "#1F6A32"];
-    for (let i = 0; i < bladeN; i++) {
-      let x = (hash(i, 4) - 0.5) * 96, z = H / 2 + 3.2 + hash(i, 5) * 26;
-      const roadZ = OUTSIDE.roadY - H / 2;
-      const onWalk = (Math.abs(x) < 5.2 && z > H / 2 - 0.4 && z < H / 2 + 26) || (Math.abs(x) < 32 && z > H / 2 + 0.5 && z < H / 2 + 5.6) || (z > roadZ - 6.4 && z < roadZ - 1.6);
-      if (onWalk) { x += x < 0 ? -18 : 18; z = H / 2 - 8; }
-      if (Math.abs(x) < 4.2) x += x < 0 ? -4 : 4;
-      if (Math.abs(z - roadZ) < 3.6) z -= 8;
-      be.set(0.15 + hash(i, 6) * 0.35, hash(i, 7) * 6.28, (hash(i, 8) - 0.5) * 0.4); bq.setFromEuler(be);
-      const sc = 0.65 + hash(i, 9) * 0.9; bm.compose(new THREE.Vector3(x, sc * 0.2, z), bq, new THREE.Vector3(sc, sc, sc)); blades.setMatrixAt(i, bm); blades.setColorAt(i, bc.set(shades[i % 4]));
-    }
-    blades.receiveShadow = true; S.add(blades);
-    this.flat(this.rep("stoneP", () => T.stoneTex(), 2, 8), 9, 24, 0, H / 2 + 13, -0.02);
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(9, 40), this.std(this.rep("stoneD", () => T.stoneTex(), 5, 5))); disc.rotation.x = -Math.PI / 2; disc.position.set(0, -0.015, H / 2 + 30); disc.receiveShadow = true; S.add(disc);
-    // instanced paper trees: a trunk + a faceted crown each
-    const spots: { x: number; z: number; s: number }[] = [];
-    for (let i = 0; i < 900 && spots.length < 190; i++) {
-      const x = (hash(i, 1) - 0.5) * 150, z = (hash(i, 2) - 0.5) * 140 + 8;
-      if (Math.abs(x) < W / 2 + 5 && Math.abs(z) < H / 2 + 5) continue;                   // keep clear of the building
-      if (Math.abs(x) < 8 && z > H / 2 - 1 && z < H / 2 + 28) continue;
-      if (z > OUTSIDE.roadY - H / 2 - 7 && z < OUTSIDE.roadY - H / 2 + 4) continue;
-      if (Math.hypot(x, z - (H / 2 + 30)) < 11) continue;
-      spots.push({ x, z, s: 0.8 + hash(i, 3) * 0.9 });
-    }
-    const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.28, 2.0, 7), this.plain("#8A5A32"), spots.length);
-    const leafN = spots.length * 14;
-    const leaves = new THREE.InstancedMesh(this.leafGeo(), new THREE.MeshStandardMaterial({ roughness: 0.62, side: THREE.DoubleSide }), leafN);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), leafCol = new THREE.Color();
-    const greens = ["#1F8A45", "#2F9A4A", "#67B34A", "#E8833A", "#3CB371", "#C2452D", "#8FCB62"];
-    spots.forEach((p, i) => {
-      q.identity(); m4.compose(new THREE.Vector3(p.x, 0.95 * p.s, p.z), q, new THREE.Vector3(p.s, p.s * 1.15, p.s)); trunk.setMatrixAt(i, m4);
-      for (let k = 0; k < 14; k++) {
-        const a = hash(i, 20 + k) * 6.28, rad = (0.35 + hash(i, 40 + k) * 0.85) * p.s, y = (1.7 + hash(i, 60 + k) * 1.5) * p.s;
-        e.set(0.4 + hash(i, 70 + k), a, 0.3); q.setFromEuler(e);
-        m4.compose(new THREE.Vector3(p.x + Math.cos(a) * rad, y, p.z + Math.sin(a) * rad), q, new THREE.Vector3(p.s, p.s, p.s));
-        const ix = i * 14 + k; leaves.setMatrixAt(ix, m4); leaves.setColorAt(ix, leafCol.set(greens[(i + k) % greens.length]));
-      }
-    });
-    trunk.castShadow = true; this.scene.add(trunk, leaves);
-    // foundation trees sit against the walls, off the front walk and the bus path
-    for (const x of [-50, -40, -30, 36, 46]) this.tree(x, H / 2 + 1.8, 1.15);
-    for (const x of [-46, -30, 30, 46]) this.tree(x, -H / 2 - 1.8, 1.15);
-    for (const z of [-30, -16, 16, 30]) { this.tree(-W / 2 - 2.1, z, 1.15); this.tree(W / 2 + 2.1, z, 1.15); }
-    // little paper houses and hills ringing the lawn
-    const wallCols = ["#FF8A78", "#FFD15C", "#5EE0A0", "#7EC8FF", "#FFB077", "#C9A6FF"], roofCols = ["#E25B45", "#C9843A", "#3D7CC9", "#D4536A"];
-    for (let i = 0; i < 26; i++) {
-      const a = (i / 26) * Math.PI * 2 + hash(i, 8) * 0.2, rx = 78 + hash(i, 9) * 18, x = Math.cos(a) * rx * 1.1, z = Math.sin(a) * rx * 0.85 + 6;
-      if (z > H / 2 - 2) continue;
-      const w = 5 + hash(i, 10) * 4, h = 3.5 + hash(i, 11) * 2.5, g = new THREE.Group();
-      const body = new THREE.Mesh(this.clay(w, h, w * 0.9, 0.55), this.plain(wallCols[i % 6])); body.position.y = h / 2; body.castShadow = true; g.add(body);
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(w * 0.78, h * 0.62, 16), this.plain(roofCols[i % 4])); roof.position.y = h + h * 0.28; roof.castShadow = true; g.add(roof);
-      const door = new THREE.Mesh(this.clay(w * 0.22, h * 0.42, 0.12, 0.08), this.plain("#FFF6E4")); door.position.set(0, h * 0.22, w * 0.46); door.castShadow = true; g.add(door);
-      const win = new THREE.Mesh(new THREE.SphereGeometry(0.38, 12, 8), new THREE.MeshStandardMaterial({ color: "#BFE9FF", roughness: 0.15, emissive: "#7EC8FF", emissiveIntensity: 0.25 })); win.position.set(w * 0.22, h * 0.62, w * 0.42); g.add(win);
-      const chim = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, h * 0.35, 10), this.plain("#E8D7C4")); chim.position.set(-w * 0.22, h + h * 0.42, 0); g.add(chim);
-      g.position.set(x, 0, z); g.rotation.y = hash(i, 12) * 6; S.add(g);
-    }
-    for (let i = 0; i < 14; i++) {
-      const a = (i / 14) * Math.PI * 2 + 0.2, r = 118 + hash(i, 13) * 30, s = 14 + hash(i, 14) * 14;
-      const hill = new THREE.Mesh(new THREE.SphereGeometry(s, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: ["#7ED9A0", "#B6F2C4", "#5EBE88"][i % 3], roughness: 0.8 }));
-      hill.scale.y = 0.62; hill.position.set(Math.cos(a) * r * 1.15, -0.4, Math.sin(a) * r * 0.9 + 6); S.add(hill);
-    }
-  }
+  private buildOutside() { buildOutsideWorld(this); }
 
   /* ------------------------------------------------------------ people (billboarded chibi sprites baked from the vector art) */
   private makePerson(id: number, look: Look, h = AGE_SCALE[look.age ?? "hs"] * ((look as any).hScale ?? 1)): Person {
@@ -1011,57 +845,7 @@ export class HallScene {
   private squirrels: { g: THREE.Group; x: number; z: number; tx: number; tz: number; wait: number }[] = [];
   private deer: { g: THREE.Group; x: number; z: number; tx: number; tz: number; wait: number; legs: THREE.Object3D[] } | null = null;
   /** leaves stay outside the building. Birds of several kinds fly the lawn. Squirrels and one deer wander. */
-  private buildLife() {
-    if (seasonOf() === "autumn") {
-      const mat = ["#E8833A", "#C2452D", "#EAB94E", "#8A5A2B"].map((c) => new THREE.MeshStandardMaterial({ color: c, side: THREE.DoubleSide, roughness: 0.6 }));
-      for (let i = 0; i < 36; i++) {
-        const m = new THREE.Mesh(this.leafGeo(), mat[i % 4]); m.scale.setScalar(0.45);
-        const ang = (i / 36) * Math.PI * 2, rad = 62 + (i % 5) * 6;
-        m.position.set(Math.cos(ang) * rad, 2 + (i % 8) * 0.8, Math.sin(ang) * rad * 0.75 + 8);
-        m.userData.fall = 0.6 + (i % 5) * 0.15; this.leaves.push(m); this.scene.add(m);
-      }
-    }
-    const kinds = [
-      { body: "#6b4428", breast: "#d4534a", wing: "#4a3024", scale: 1, y: 5.2, flap: 9, r: 22, speed: 0.42 },
-      { body: "#c62828", breast: "#e53935", wing: "#8e1b1b", scale: 1.05, y: 6.6, flap: 8, r: 28, speed: 0.36 },
-      { body: "#2f6fbe", breast: "#f4f7fb", wing: "#1d4e89", scale: 1.15, y: 7.4, flap: 7, r: 36, speed: 0.5 },
-      { body: "#a8845a", breast: "#e6d3b0", wing: "#7a6244", scale: 0.7, y: 4.3, flap: 13, r: 16, speed: 0.55 },
-      { body: "#a8845a", breast: "#e6d3b0", wing: "#7a6244", scale: 0.68, y: 4.6, flap: 13, r: 15, speed: 0.58 },
-      { body: "#1c1c1c", breast: "#2a2a2a", wing: "#111111", scale: 1.4, y: 9.8, flap: 4.5, r: 44, speed: 0.22 },
-      { body: "#8d9399", breast: "#f7f7f7", wing: "#2c2c2c", scale: 0.6, y: 5.6, flap: 15, r: 13, speed: 0.7 },
-    ];
-    kinds.forEach((k, i) => {
-      const g = new THREE.Group(), body = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), this.plain(k.body)); body.scale.set(1.7, 0.75, 0.85); g.add(body);
-      const breast = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), this.plain(k.breast)); breast.position.set(0.08, -0.02, 0); g.add(breast);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), this.plain(k.body)); head.position.set(0.16, 0.04, 0); g.add(head);
-      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.08, 5), this.plain("#e2b15a")); beak.rotation.z = -Math.PI / 2; beak.position.set(0.22, 0.03, 0); g.add(beak);
-      const tail = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.08), new THREE.MeshStandardMaterial({ color: k.wing, side: THREE.DoubleSide })); tail.position.set(-0.16, 0.02, 0); g.add(tail);
-      for (const side of [-1, 1]) { const w = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.08), new THREE.MeshStandardMaterial({ color: k.wing, side: THREE.DoubleSide })); w.position.set(0, 0.02, side * 0.08); w.name = side < 0 ? "wingL" : "wingR"; g.add(w); }
-      if (i === 1 || i === 2) { const crest = new THREE.Mesh(this.leafGeo(), this.plain(k.body)); crest.scale.setScalar(0.35); crest.position.set(0.12, 0.12, 0); crest.rotation.z = -0.6; g.add(crest); }
-      g.scale.setScalar(k.scale); this.birds.push({ g, y: k.y, r: k.r, flap: k.flap, speed: k.speed, phase: i * 1.3 }); this.scene.add(g);
-    });
-    for (let i = 0; i < 5; i++) {
-      const g = new THREE.Group(), fur = this.plain("#8A5A32"), belly = this.plain("#E6C39A");
-      const body = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), fur); body.scale.set(1.55, 0.75, 0.9); body.position.y = 0.16; g.add(body);
-      const tum = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5), belly); tum.position.set(0.04, 0.1, 0); g.add(tum);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), fur); head.position.set(0.16, 0.24, 0); g.add(head);
-      for (const s of [-1, 1]) { const ear = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.07, 5), fur); ear.position.set(0.16, 0.32, s * 0.04); g.add(ear); }
-      const tail = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), this.plain("#C4894A")); tail.scale.set(0.7, 1.3, 0.7); tail.position.set(-0.2, 0.28, 0); tail.rotation.z = 0.6; tail.name = "tail"; g.add(tail);
-      for (const [lx, lz] of [[0.08, 0.06], [0.08, -0.06], [-0.08, 0.06], [-0.08, -0.06]] as const) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.08, 4), fur); leg.position.set(lx, 0.04, lz); g.add(leg); }
-      const x = (i - 2) * 14, z = H / 2 + 4.5; g.position.set(x, 0, z); this.squirrels.push({ g, x, z, tx: x + 2, tz: z, wait: i }); this.scene.add(g);
-    }
-    const g = new THREE.Group(), hide = this.plain("#8C6239"), pale = this.plain("#F3E6D2");
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), hide); body.scale.set(1.8, 0.85, 0.7); body.position.set(0, 0.85, 0); g.add(body);
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.55, 6), hide); neck.position.set(0.55, 1.15, 0); neck.rotation.z = -0.5; neck.name = "neck"; g.add(neck);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), hide); head.position.set(0.82, 1.35, 0); g.add(head);
-    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), this.plain("#3a2a22")); nose.position.set(0.96, 1.32, 0); g.add(nose);
-    for (const s of [-1, 1]) { const ear = new THREE.Mesh(this.leafGeo(), hide); ear.scale.setScalar(0.45); ear.position.set(0.74, 1.5, s * 0.08); g.add(ear);
-      const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.28, 4), this.plain("#C4A574")); ant.position.set(0.7, 1.62, s * 0.06); ant.rotation.z = s * 0.4; g.add(ant); }
-    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5), pale); tail.position.set(-0.72, 0.95, 0); g.add(tail);
-    const legs: THREE.Object3D[] = [];
-    [[0.28, 0.18], [0.28, -0.18], [-0.32, 0.18], [-0.32, -0.18]].forEach(([lx, lz], n) => { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.7, 5), hide); leg.position.set(lx, 0.38, lz); leg.name = "leg" + n; g.add(leg); legs.push(leg); });
-    const x = 22, z = H / 2 + 18; g.position.set(x, 0, z); this.deer = { g, x, z, tx: x - 6, tz: z, wait: 1.5, legs }; this.scene.add(g);
-  }
+  private buildLife() { buildLifeWorld(this); }
   private lawnSpot(seed: number, near: boolean) {
     const x = (hash(seed, 2) - 0.5) * (near ? 50 : 70);
     let z = H / 2 + (near ? 3.6 : 14) + hash(seed, 3) * (near ? 3.2 : 22);
@@ -1087,14 +871,7 @@ export class HallScene {
       }
     }
   }
-  private buildRoad() {
-    const road = new THREE.Mesh(new THREE.PlaneGeometry(220, 6.4), new THREE.MeshStandardMaterial({ color: "#5d5a62", roughness: 1 })); road.rotation.x = -Math.PI / 2; road.position.set(0, -0.005, OUTSIDE.roadY - H / 2); road.receiveShadow = true; this.scene.add(road);
-    for (let x = -100; x < 100; x += 4) { const d = new THREE.Mesh(new THREE.PlaneGeometry(2, 0.14), new THREE.MeshBasicMaterial({ color: "#F8D977" })); d.rotation.x = -Math.PI / 2; d.position.set(x, 0.002, OUTSIDE.roadY - H / 2 - 1.4); this.scene.add(d); }
-    for (let i = 0; i < 7; i++) { const z = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 6.2), new THREE.MeshBasicMaterial({ color: "#F4EEE0" })); z.rotation.x = -Math.PI / 2; z.position.set(-3 + i * 1.0, 0.003, OUTSIDE.roadY - H / 2); this.scene.add(z); }
-    const walk = new THREE.Mesh(new THREE.PlaneGeometry(60, 4.2), this.std(this.rep("stoneW", () => T.stoneTex(), 14, 1))); walk.rotation.x = -Math.PI / 2; walk.position.set(0, -0.012, H / 2 + 3.0); this.scene.add(walk);
-    const sideZ = OUTSIDE.roadY - H / 2 - 4.4;
-    const side = new THREE.Mesh(new THREE.PlaneGeometry(170, 3.6), this.std(this.rep("stoneS", () => T.stoneTex(), 20, 1))); side.rotation.x = -Math.PI / 2; side.position.set(-16, -0.011, sideZ); side.receiveShadow = true; this.scene.add(side);
-  }
+  private buildRoad() { buildRoadWorld(this); }
   /** is a seat free (no one else is meant to be there) */
   standUp() { if (this.sitting == null) return; const s = this.seats[this.sitting]; this.sitting = null; this.pendingSeat = null; if (!s) return; const out = s.pos.clone().sub(s.ctr).setY(0).normalize().multiplyScalar(0.7); this.player.pos.copy(s.pos).add(out); }
   /** walk to a Chat Chow seat and sit; face the table */
@@ -1369,14 +1146,14 @@ export class HallScene {
   }
   /** walk the player to a class door, the library, the plaza fountain, or the main entrance */
   goTo(key: string) {
-    if (key === "library" || key === "news" || key === "newsroom") {
+    if (key === "library" || key === "news" || key === "newsroom" || key === "lab" || key === "art") {
       if (this.floor === 0) {
         this.navThen = () => this.climb(1, () => this.goTo(key));
         if (!this.planNav(STAIR_GROUND.x, STAIR_GROUND.y, "the upstairs stairs", null)) this.navThen = null;
         return;
       }
-      const goal = key === "news" ? { x: 28, y: 66 } : key === "newsroom" ? { x: 78, y: 66 } : LIB_READ;
-      const label = key === "news" ? "the auditorium" : key === "newsroom" ? "the newsroom" : "the reading room";
+      const goal = key === "news" ? { x: 28, y: 66 } : key === "newsroom" ? { x: 78, y: 66 } : key === "lab" ? { x: 13.5, y: 43 } : key === "art" ? { x: 94.5, y: 43 } : LIB_READ;
+      const label = key === "news" ? "the auditorium" : key === "newsroom" ? "the newsroom" : key === "lab" ? "the computer lab" : key === "art" ? "the art studio" : "the reading room";
       this.planNav(goal.x, goal.y, label, null); return;
     }
     if (this.floor === 1) { this.navThen = null; this.climb(0, () => this.goTo(key)); return; }
@@ -1394,7 +1171,7 @@ export class HallScene {
   setBeacon(key: string | null) {
     if (this.beacon) { this.scene.remove(this.beacon); this.beacon = null; }
     if (!key) return;
-    const door = DOORS.find((d) => d.subject === key), p = door ? g2w(door.cx, door.cy) : key === "news" ? g2w(NEWS.cx, 0.8) : key === "open" ? g2w(0.8, OPEN.cy) : key === "library" ? g2w(STAIR_GROUND.x, STAIR_GROUND.y) : null; if (!p) return;
+    const door = DOORS.find((d) => d.subject === key), p = door ? g2w(door.cx, door.cy) : key === "news" ? g2w(NEWS.cx, 0.8) : key === "open" ? g2w(0.8, OPEN.cy) : key === "library" || key === "lab" || key === "art" ? g2w(STAIR_GROUND.x, STAIR_GROUND.y) : null; if (!p) return;
     const g = new THREE.Group(), mat = (o: number) => new THREE.MeshBasicMaterial({ color: 0xffd45e, transparent: true, opacity: o, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending });
     const pil = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 5, 16, 1, true), mat(0.3)); pil.position.y = 2.5; g.add(pil);
     const arr = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.9, 4), new THREE.MeshBasicMaterial({ color: 0xffb800, toneMapped: false })); arr.rotation.x = Math.PI; arr.name = "arr"; g.add(arr);
@@ -1629,6 +1406,8 @@ export class HallScene {
       else if (!hit(AUD_DOOR, gx, gy) && this.inDoor === "news") this.inDoor = null;
       if (hit(NEWS_DOOR, gx, gy)) { if (!this.newsLatch) { this.newsLatch = true; this.onNewsroom(); } } else this.newsLatch = false;
       if (hit(LIB_DESK, gx, gy)) { if (!this.bookLatch) { this.bookLatch = true; this.onBooks(); } } else this.bookLatch = false;
+      if (hit(COMP_LAB, gx, gy)) { if (!this.labLatch) { this.labLatch = true; this.onLab(); } } else this.labLatch = false;
+      if (hit(ART_STUDIO, gx, gy)) { if (!this.artLatch) { this.artLatch = true; this.onArt(); } } else this.artLatch = false;
       return;
     }
     if (hit(NEWS.trigger, gx, gy)) { if (!this.sentUp) { this.sentUp = true; this.goTo("news"); } return; }
