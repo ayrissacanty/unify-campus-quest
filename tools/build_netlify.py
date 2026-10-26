@@ -261,9 +261,11 @@ if (
 missing = []
 for page in PAGES:
     html = read(os.path.join(out, page), errors="ignore")
-    first = re.search(r"<script[^>]*>", html)
+    # look.js must be the first script WITH A SRC (inline bootstraps like the
+    # frame-bust/redirect one-liner above it are fine: they never paint).
+    first = re.search(r"<script[^>]*\ssrc=[^>]*>", html)
     if not first or "look.js" not in first.group(0):
-        missing.append(f"{page}: look.js is not the first script")
+        missing.append(f"{page}: look.js is not the first external script")
     base = os.path.dirname(page)
     for u in re.findall(r'(?:src|href)=["\']([^"\'#?]+)', html):
         if (
