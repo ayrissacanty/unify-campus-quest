@@ -86,7 +86,7 @@ iframe.on{display:block}
 <div id="shotToast" role="status" aria-live="polite"></div>
 <div id="phoneWrap"><iframe id="fPhone" title="Flip phone" allowtransparency="true" allow="fullscreen"></iframe></div>
 <main>
-  <iframe id="fHall" class="on" src="hallway3d.html?v=41" title="Hallway"></iframe>
+  <iframe id="fHall" class="on" data-src="hallway3d.html?v=41" title="Hallway"></iframe>
   <iframe id="fNews" title="UNIFY News" allow="geolocation; autoplay"></iframe>
   <iframe id="fAud" title="Classroom"></iframe>
   <iframe id="fOpen" title="The Open Door" allow="camera; microphone; display-capture; fullscreen; autoplay"></iframe>
@@ -106,9 +106,12 @@ const F={hall:$('fHall'),news:$('fNews'),aud:$('fAud'),stage:$('fStage'),open:$(
 const NAMES={math:'Math',ela:'ELA',science:'Science',history:'History',careers:'CarryingCareers',life:'Life Lessons',news:'Newsroom',open:'The Open Door',trip:'VR Field Trip'};
 const HINT='Walk into a doorway to enter a lesson';
 let pendingAtt=[],fromDoor=false,view='hall',audReady=false,pending=null,room='A',audPage='classroom3d.html?v=8',curSubject=null;
+/* the hallway is the heaviest scene (dozens of shaders on its first frame); a deep link straight into another room must not pay for it up front */
+function loadHall(){if(!F.hall.getAttribute('src'))F.hall.src=F.hall.dataset.src;}
 function show(v){
  if(view==='news'&&v!=='news'&&F.news.contentWindow)F.news.contentWindow.postMessage({type:'unify:hide'},'*');
  view=v;for(const k in F)F[k].classList.toggle('on',k===v);
+ if(v==='hall')loadHall();
  $('tHall').classList.toggle('on',v==='hall');$('tNews').classList.toggle('on',v==='news');$('tMail').classList.toggle('on',v==='mail');$('tDesk').classList.toggle('on',v==='desk');$('tDorm').classList.toggle('on',v==='dorm');$('tParent').classList.toggle('on',v==='parent');
  if(v==='mail'&&!F.mail.getAttribute('src'))F.mail.src='mail.html';
  if(v==='desk'&&!F.desk.getAttribute('src'))F.desk.src='newsdesk.html';
@@ -185,7 +188,7 @@ function dormDb(){return new Promise((res,rej)=>{const q=indexedDB.open('unify-d
 async function saveShot(blob){const db=await dormDb();try{
  const n=await new Promise((res,rej)=>{const r=db.transaction('photos','readonly').objectStore('photos').count();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});
  if(n>=60)throw new Error('full');
- const rec={id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),at:Date.now(),kind:'screenshot',blob,caption:''};
+ const rec={id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),at:Date.now(),kind:'screenshot',blob:blob,caption:''};
  await new Promise((res,rej)=>{const t=db.transaction('photos','readwrite');t.objectStore('photos').put(rec);t.oncomplete=()=>res();t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error);});
 }finally{db.close();}}
 $('tShot').onclick=async()=>{
@@ -239,7 +242,8 @@ setTimeout(()=>{try{if(window.UnifyMail&&UnifyMail.watchUnread)UnifyMail.watchUn
  else if(v==='news'||v==='mail'||v==='desk'||v==='dorm'){$('room').textContent='';fromDoor=false;show(v);}
  else if(v==='stage'||v==='auditorium')enter('news','news',[]);
  else if(v==='open')enter('open','open',[]);
- else if(v==='trip')enter('trip','trip',[]);}catch(e){}})();
+ else if(v==='trip')enter('trip','trip',[]);}catch(e){}
+ if(view==='hall')loadHall();})();
 window.__academy={show,enter,leave,get view(){return view;}};
 })();
 </script>
