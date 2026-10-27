@@ -91,8 +91,12 @@ await test("curriculum: search for a word and open a result", async (p) => {
 });
 
 // 4. Hallway: wait for the 3D scene, walk with the on-screen pad, open the Go menu and pick a destination.
-await test("hallway3d: walk with the pad and use the Go menu", async (p) => {
-  await p.goto(`${BASE}/hallway3d.html`, { waitUntil: "commit", timeout: 60000 });
+await test("hallway3d: walk with the pad and use the Go menu", async (page) => {
+  // since "one app, one address" the bare hallway3d.html bounces into index.html, which hosts the hall in its #fHall iframe
+  await page.goto(`${BASE}/index.html`, { waitUntil: "commit", timeout: 60000 });
+  const t0 = Date.now(); let p = null;
+  while (!p && Date.now() - t0 < 60000) { p = page.frames().find((f) => /\/hallway3d\.html/.test(f.url())) || null; if (!p) await page.waitForTimeout(250); }
+  if (!p) throw new Error("index.html never loaded the hallway frame");
   await p.waitForSelector("canvas", { timeout: CANVAS_MS, state: "attached" });
   await p.waitForFunction(() => window.__hall && document.getElementById("clk").textContent.trim() !== "", null, { timeout: CANVAS_MS, polling: 1000 });
   // close the first-visit avatar creator like a student would skip it, then wait out any arrival cut-scene
