@@ -22,7 +22,13 @@ html[data-look="pixar"] #paper,html[data-look="pixar"] #tint{display:none}
 #tint{mix-blend-mode:multiply;z-index:21}
 #vig{background:radial-gradient(ellipse at center,rgba(0,0,0,0) 58%,rgba(96,58,52,.28) 100%);z-index:22}
 .hud{position:absolute;z-index:30;display:flex;gap:8px;flex-wrap:wrap;align-items:center;left:50%;transform:translateX(-50%);top:calc(8px + env(safe-area-inset-top,0px))}
-.sideBtns{position:absolute;z-index:30;left:10px;top:calc(58px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.sideBtns{position:absolute;z-index:30;left:10px;top:calc(58px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:10px;align-items:stretch;width:172px}
+.sideBtns .panel{background:var(--kraft);border-radius:14px;border:1px solid rgba(255,255,255,.7);box-shadow:0 2px 0 var(--kraft-edge),0 6px 10px rgba(80,50,40,.28);padding:8px;display:flex;flex-direction:column;gap:6px}
+.sideBtns .panel h4{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--soft);margin:0 4px 1px}
+.sideBtns .panel .tag{width:100%;min-height:40px;display:flex;align-items:center;text-align:left;background:#FFF9F0;border-radius:10px;box-shadow:0 2px 0 var(--kraft-edge)}
+.sideBtns .panel .tag:active{transform:translateY(2px);box-shadow:none}
+.sideBtns .panel select.tag{width:100%;min-height:40px;cursor:pointer}
+.sideBtns .primary{background:var(--acc)!important;color:#fff;font-weight:600;border-color:rgba(255,255,255,.7)}
 .tag{background:var(--kraft);border-radius:12px;padding:6px 12px;font-size:14px;box-shadow:0 2px 0 var(--kraft-edge),0 6px 10px rgba(80,50,40,.28);border:1px solid rgba(255,255,255,.7)}
 .tag b{font-weight:600}
 .tag .bar{display:inline-block;vertical-align:middle;margin-left:8px;width:84px;height:7px;border-radius:4px;background:rgba(74,59,63,.16);overflow:hidden}
@@ -44,7 +50,7 @@ button.tag:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
 #toast{position:absolute;z-index:31;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:none;max-width:90%;text-align:center}
 #toast.show{display:block}
 .pad{position:absolute;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));width:180px;height:180px;z-index:30;touch-action:none;display:none}
-@media(max-width:700px){#cnt,#bDbg,#bFriends{display:none}.tag{padding:4px 10px;font-size:13px}button.tag{min-height:32px}}
+@media(max-width:700px){#cnt,#bDbg,#bFriends{display:none}.sideBtns{width:148px}.tag{padding:4px 10px;font-size:13px}button.tag{min-height:32px}}
 @media (pointer:coarse){.pad{display:block}.hint{display:none}.rot{bottom:calc(14px + env(safe-area-inset-bottom,0px))}}
 .pad button{position:absolute;width:56px;height:56px;border-radius:16px;border:1px solid rgba(255,255,255,.7);background:var(--kraft);box-shadow:0 2px 0 var(--kraft-edge),0 5px 8px rgba(80,50,40,.3);color:var(--ink);font-size:20px;touch-action:none}
 #viewMenu{left:50%;top:calc(52px + env(safe-area-inset-top,0px));transform:translateX(-50%)}
@@ -66,19 +72,24 @@ button.tag:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
 </div>
 <div class="sideBtns">
   <span class="tag" id="cnt"></span>
-  <button class="tag" id="bBooks">Books</button>
-  <button class="tag" id="bTimes">&#128203; Class times</button>
-  <button class="tag" id="bGo">Go to &#9662;</button>
-  <button class="tag" id="bMe">Me &#9662;</button>
-  <label class="tag" for="bLook">Look</label>
-  <select class="tag" id="bLook" aria-label="School colours">
-    <option value="auto">Movie</option>
-    <option value="story">Storybook</option>
-    <option value="sky">Sky Hall</option>
-    <option value="forest">Forest</option>
-    <option value="candle">Candle Hall</option>
-    <option value="sunset">Sunset</option>
-  </select>
+  <div class="panel">
+    <h4>School</h4>
+    <button class="tag primary" id="bGo">Go to &#9662;</button>
+    <button class="tag" id="bBooks">Books</button>
+    <button class="tag" id="bTimes">&#128203; Class times</button>
+  </div>
+  <div class="panel">
+    <h4>You</h4>
+    <button class="tag" id="bMe">Me &#9662;</button>
+    <select class="tag" id="bLook" aria-label="School colours">
+      <option value="auto">Movie</option>
+      <option value="story">Storybook</option>
+      <option value="sky">Sky Hall</option>
+      <option value="forest">Forest</option>
+      <option value="candle">Candle Hall</option>
+      <option value="sunset">Sunset</option>
+    </select>
+  </div>
 </div>
 <div class="tag menu" id="viewMenu"><h4>View</h4><button id="bView">View: Close-up</button><button id="bSpd">Speed x1</button></div>
 <div class="tag menu" id="meMenu"><h4>Me</h4><button id="bFriends">Friends</button><button id="bLocker">My locker</button><button id="bOpenLocker">Find an open locker</button><button id="bAvatar">Avatar</button><button id="bCloset">Closet (5 outfits)</button><button id="bTake">Take the new-student assessment</button><button id="bGfx">Graphics: Auto</button></div>
