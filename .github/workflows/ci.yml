@@ -12,7 +12,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -36,16 +36,40 @@ jobs:
         run: pip install --quiet pillow
       - name: Build the site exactly as Netlify does (fails if a page points at a file that was not copied)
         run: python3 tools/build_netlify.py dist
-      - name: Install browser for smoke test
-        run: npx playwright install --with-deps chromium
-      - name: Smoke test (open every page in a real browser, fail on script errors)
-        run: npm run test:smoke
-        env:
-          SMOKE_DIR: dist
-      - name: Student click-through tests (curriculum next lesson, search, hallway walk and Go menu)
-        run: npm run test:student
-        env:
-          SMOKE_DIR: dist
       - name: Dependency audit (high and critical only; informational for now)
         run: npm audit --audit-level=high
         continue-on-error: true
+
+  # Browser tests run in their own parallel jobs. Software WebGL (SwiftShader) on a runner needs about 3-4 minutes to
+  # compile the hallway's shaders on every fresh page that shows it (index, hallway3d and classroom3d all land on the hall),
+  # and the apt step of a browser install can take 10 minutes on a slow mirror, so one 20-minute job could not hold both suites.
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - { script: "test:smoke", name: "Smoke test (open every page in a real browser, fail on script errors)" }
+          - { script: "test:student", name: "Student click-through tests (curriculum next lesson, search, hallway walk and Go menu)" }
+    name: ${{ matrix.suite.name }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci --ignore-scripts
+      - name: Build bundles
+        run: npm run build
+      - name: Image tool (lossless WebP; the build still works without it)
+        run: pip install --quiet pillow
+      - name: Build the site exactly as Netlify does
+        run: python3 tools/build_netlify.py dist
+      - name: Install browser (headless shell only)
+        run: npx playwright install --with-deps --only-shell chromium
+      - name: Run ${{ matrix.suite.script }}
+        run: npm run ${{ matrix.suite.script }}
+        env:
+          SMOKE_DIR: dist
