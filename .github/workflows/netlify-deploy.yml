@@ -37,3 +37,10 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+      - name: Deploy dist to unify-academy-standard
+        run: |
+          npx --yes netlify-cli@17 deploy --prod --dir=dist --functions=dist/netlify/functions \
+            --site "552096f2-8086-4ded-bb75-e9481a6fd10f" --auth "$NETLIFY_AUTH_TOKEN"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
