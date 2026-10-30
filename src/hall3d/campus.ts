@@ -111,7 +111,7 @@ const tablesAt = (xs: number[], ys: number[]): Prop[] => xs.flatMap((x) => ys.ma
 export const PROPS: Prop[] = [
   { kind: "fountain", x: 54, y: 46 },
   { kind: "bboard", x: 54, y: 52 },
-  { kind: "tv", x: 22, y: 27 },
+  { kind: "tv", x: 17, y: 27 },
   ...tablesAt([28, 80], [40, 50]),
   ...[[46, 44], [62, 44], [8, 34], [100, 40]].map(([x, y]) => ({ kind: "bench" as const, x, y, rot: x < 20 || x > 90 ? 0 : Math.PI / 2 })),
   { kind: "planter", x: 40, y: 30 }, { kind: "planter", x: 68, y: 30 }, { kind: "planter", x: 40, y: 62 }, { kind: "planter", x: 68, y: 62 },
